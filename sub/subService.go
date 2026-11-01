@@ -31,7 +31,11 @@ func (s *SubService) GetSubs(subId string) (*string, []string, error) {
 		clientInfo = s.getClientInfo(client)
 	}
 
-	linksArray, err := s.LinkService.GetLinksChecked(&client.Links, "all", clientInfo)
+	clientLinks, err := s.LinkService.LinksForClient(client)
+	if err != nil {
+		return nil, nil, err
+	}
+	linksArray, err := s.LinkService.GetLinksChecked(&clientLinks, "all", clientInfo, client.Id)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -126,7 +130,11 @@ func (s *SubService) getClientInfoJSON(subId string) (*ClientInfo, error) {
 	}
 
 	if !info.Expired {
-		links, err := s.LinkService.GetLinksChecked(&client.Links, "all", "")
+		clientLinks, err := s.LinkService.LinksForClient(client)
+		if err != nil {
+			return nil, err
+		}
+		links, err := s.LinkService.GetLinksChecked(&clientLinks, "all", "", client.Id)
 		if err != nil {
 			return nil, err
 		}

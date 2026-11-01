@@ -101,22 +101,31 @@ func (s *ExternalSubCacheService) Resolve(raw string) (string, bool, error) {
 	if !config.Enabled {
 		return util.GetExternalLink(raw), false, nil
 	}
-	var snapshot model.ExternalSubSnapshot
-	err = database.GetDB().Where("key = ?", externalSubKey(raw)).First(&snapshot).Error
-	if err != nil || snapshot.Payload == "" || snapshot.LastSuccess == 0 {
-		return "", true, ErrExternalSubCacheUnavailable
-	}
-	return snapshot.Payload, true, nil
+	body, err := s.snapshot(raw)
+	return body, true, err
 }
 
+func (s *ExternalSubCacheService) snapshot(raw string) (string, error) {
+	var row model.ExternalSubSnapshot
+	err := database.GetDB().Where("key = ?", externalSubKey(raw)).First(&row).Error
+	if err != nil || row.Payload == "" || row.LastSuccess == 0 {
+		return "", ErrExternalSubCacheUnavailable
+	}
+	return row.Payload, nil
+}
+
+// Enabled catalog sources can be prewarmed without a user. Only sources with
+// active consumers are scheduled automatically. Legacy URLs retain their scope.
 func activeExternalSubs(db *gorm.DB, now int64) (map[string]externalSubReference, error) {
 	var clients []model.Client
-	err := db.Select("links").Where("enable = ? AND (expiry = 0 OR expiry > ?)", true, now).Find(&clients).Error
-	if err != nil {
+	if err := db.Select("id, links").Where("enable = ? AND (expiry = 0 OR expiry > ?)", true, now).Find(&clients).Error; err != nil {
 		return nil, err
 	}
-	result := map[string]externalSubReference{}
+	refs := map[string]externalSubReference{}
+	seenByClient := map[uint]map[string]bool{}
 	for _, client := range clients {
+		seen := map[string]bool{}
+		seenByClient[client.Id] = seen
 		var links []struct {
 			Type   string `json:"type"`
 			Uri    string `json:"uri"`
@@ -125,24 +134,62 @@ func activeExternalSubs(db *gorm.DB, now int64) (map[string]externalSubReference
 		if json.Unmarshal(client.Links, &links) != nil {
 			continue
 		}
-		seen := map[string]bool{}
 		for _, link := range links {
 			if link.Type != "sub" || link.Uri == "" {
 				continue
 			}
 			key := externalSubKey(link.Uri)
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			ref := result[key]
+			ref := refs[key]
 			ref.url = link.Uri
 			if ref.name == "" {
 				ref.name = link.Remark
 			}
-			ref.references++
-			result[key] = ref
+			refs[key] = ref
+			seen[key] = true
 		}
+	}
+	var sources []model.ExternalSubSource
+	if err := db.Where("enabled = ?", true).Order("id").Find(&sources).Error; err != nil {
+		return nil, err
+	}
+	byId := map[string]string{}
+	for _, source := range sources {
+		key := externalSubKey(source.URL)
+		ref := refs[key]
+		ref.url, ref.name = source.URL, source.Name
+		refs[key] = ref
+		byId[source.Id] = key
+	}
+	var grants []model.ExternalSubGrant
+	if err := db.Find(&grants).Error; err != nil {
+		return nil, err
+	}
+	for _, grant := range grants {
+		key, enabled := byId[grant.SourceId]
+		if seen, active := seenByClient[grant.ClientId]; active && enabled {
+			seen[key] = true
+		}
+	}
+	for _, seen := range seenByClient {
+		for key := range seen {
+			ref := refs[key]
+			ref.references++
+			refs[key] = ref
+		}
+	}
+	return refs, nil
+}
+
+// Metadata queries never load payloads into an admin status object.
+func externalSubSnapshotMetadata(db *gorm.DB, now int64) (map[string]ExternalSubCacheStatus, error) {
+	var rows []ExternalSubCacheStatus
+	err := db.Model(&model.ExternalSubSnapshot{}).Select("key, last_success, last_attempt, next_attempt, last_error, paused, requested, (last_success > 0 AND length(payload) > 0) AS ready, (lock_until > ?) AS refreshing", now).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	result := map[string]ExternalSubCacheStatus{}
+	for _, row := range rows {
+		result[row.Key] = row
 	}
 	return result, nil
 }
@@ -153,22 +200,9 @@ func (s *ExternalSubCacheService) Status() ([]ExternalSubCacheStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	var snapshots []model.ExternalSubSnapshot
-	if err = database.GetDB().Omit("payload", "lease").Find(&snapshots).Error; err != nil {
+	stored, err := externalSubSnapshotMetadata(database.GetDB(), now)
+	if err != nil {
 		return nil, err
-	}
-	stored := map[string]model.ExternalSubSnapshot{}
-	for _, row := range snapshots {
-		stored[row.Key] = row
-	}
-	var readyKeys []string
-	if err := database.GetDB().Model(&model.ExternalSubSnapshot{}).
-		Where("last_success > 0 AND length(payload) > 0").Pluck("key", &readyKeys).Error; err != nil {
-		return nil, err
-	}
-	ready := map[string]bool{}
-	for _, key := range readyKeys {
-		ready[key] = true
 	}
 	result := make([]ExternalSubCacheStatus, 0, len(refs))
 	for key, ref := range refs {
@@ -179,9 +213,9 @@ func (s *ExternalSubCacheService) Status() ([]ExternalSubCacheStatus, error) {
 		}
 		result = append(result, ExternalSubCacheStatus{
 			Key: key, Name: ref.name, Host: host, References: ref.references,
-			Ready: ready[key], LastSuccess: row.LastSuccess, LastAttempt: row.LastAttempt,
+			Ready: row.Ready, LastSuccess: row.LastSuccess, LastAttempt: row.LastAttempt,
 			NextAttempt: row.NextAttempt, LastError: row.LastError, Paused: row.Paused,
-			Requested: row.Requested, Refreshing: row.LockUntil > now,
+			Requested: row.Requested, Refreshing: row.Refreshing,
 		})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].Key < result[j].Key })
@@ -198,7 +232,7 @@ func (s *ExternalSubCacheService) Configure(config ExternalSubCacheConfig, actor
 			return err
 		}
 		for _, row := range status {
-			if !row.Ready {
+			if row.References > 0 && !row.Ready {
 				return errors.New("warm-all-active-sources-before-enabling-cache")
 			}
 		}
@@ -307,7 +341,8 @@ func (s *ExternalSubCacheService) RefreshOne(ctx context.Context) error {
 	for _, key := range keys {
 		ref := refs[key]
 		row := model.ExternalSubSnapshot{Key: key}
-		if config.AutoRefresh {
+		automatic := config.AutoRefresh && ref.references > 0
+		if automatic {
 			if err := database.GetDB().Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error; err != nil {
 				return err
 			}
@@ -315,7 +350,7 @@ func (s *ExternalSubCacheService) RefreshOne(ctx context.Context) error {
 		lease := rand.Text()
 		query := database.GetDB().Model(&model.ExternalSubSnapshot{}).
 			Where("key = ? AND paused = ? AND next_attempt <= ? AND lock_until <= ?", key, false, now, now)
-		if !config.AutoRefresh {
+		if !automatic {
 			// A crashed manual job has already consumed its queue flag. Its
 			// expired lease makes it eligible again after a panel restart.
 			query = query.Where("requested = ? OR (lease <> ? AND lock_until <= ?)", true, "", now)

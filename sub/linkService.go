@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/shenaba/2s-ui/database/model"
 	"github.com/shenaba/2s-ui/logger"
 	"github.com/shenaba/2s-ui/service"
 	"github.com/shenaba/2s-ui/util"
@@ -18,6 +19,62 @@ type Link struct {
 type LinkService struct {
 }
 
+// LinksForClient combines existing entries with panel-owned grants at export
+// time. It never copies provider URLs into the client's persisted links.
+func (s *LinkService) LinksForClient(client *model.Client) (json.RawMessage, error) {
+	var links []Link
+	if len(client.Links) > 0 {
+		if err := json.Unmarshal(client.Links, &links); err != nil {
+			return nil, err
+		}
+	}
+	var catalog service.ExternalSubSourceService
+	sources, err := catalog.AuthorizedSources(client.Id)
+	if err != nil {
+		return nil, err
+	}
+	catalogURLs := map[string]bool{}
+	catalogIDs := map[string]bool{}
+	for _, source := range sources {
+		catalogURLs[source.URL] = true
+		catalogIDs[source.Id] = true
+	}
+	result := make([]Link, 0, len(links)+len(sources))
+	for _, link := range links {
+		// Prefer the snapshot-only catalog grant for the same URL. Without
+		// explicit adoption the legacy authorization remains stored separately.
+		if link.Type == "sub" && catalogURLs[link.Uri] {
+			continue
+		}
+		if link.Type == "source" && catalogIDs[link.Uri] {
+			continue
+		}
+		result = append(result, link)
+	}
+	seenURLs := map[string]bool{}
+	for _, source := range sources {
+		if seenURLs[source.URL] {
+			continue
+		}
+		seenURLs[source.URL] = true
+		result = append(result, Link{Type: "source", Remark: source.Name, Uri: source.Id})
+	}
+	return json.Marshal(result)
+}
+
+func externalLinkBody(link Link, clientId []uint) (string, bool, error) {
+	if link.Type == "source" {
+		if len(clientId) == 0 {
+			return "", true, service.ErrExternalSubCacheUnavailable
+		}
+		var catalog service.ExternalSubSourceService
+		body, err := catalog.Resolve(link.Uri, clientId[0])
+		return body, true, err
+	}
+	var cache service.ExternalSubCacheService
+	return cache.Resolve(link.Uri)
+}
+
 // The legacy wrappers remain useful to standalone converters. Subscription
 // renderers use the checked variants so a cold cache cannot publish a partial
 // configuration that replaces the client's last working one.
@@ -26,8 +83,8 @@ func (s *LinkService) GetLinks(raw *json.RawMessage, types, info string) []strin
 	return result
 }
 
-func (s *LinkService) GetLinksChecked(raw *json.RawMessage, types, info string) ([]string, error) {
-	expanded, err := s.GetLinkListChecked(raw, types, info)
+func (s *LinkService) GetLinksChecked(raw *json.RawMessage, types, info string, clientId ...uint) ([]string, error) {
+	expanded, err := s.GetLinkListChecked(raw, types, info, clientId...)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +100,7 @@ func (s *LinkService) GetLinkList(raw *json.RawMessage, types, info string) []Li
 	return result
 }
 
-func (s *LinkService) GetLinkListChecked(raw *json.RawMessage, types, info string) ([]Link, error) {
+func (s *LinkService) GetLinkListChecked(raw *json.RawMessage, types, info string, clientId ...uint) ([]Link, error) {
 	var links, result []Link
 	if raw == nil || len(*raw) == 0 {
 		return nil, nil
@@ -51,13 +108,12 @@ func (s *LinkService) GetLinkListChecked(raw *json.RawMessage, types, info strin
 	if err := json.Unmarshal(*raw, &links); err != nil {
 		return nil, err
 	}
-	var cache service.ExternalSubCacheService
 	for _, link := range links {
 		switch link.Type {
 		case "external":
 			result = append(result, link)
-		case "sub":
-			body, _, err := cache.Resolve(link.Uri)
+		case "sub", "source":
+			body, _, err := externalLinkBody(link, clientId)
 			if err != nil {
 				return nil, err
 			}
@@ -87,7 +143,7 @@ func (s *LinkService) GetExternalOutboundsForClash(raw *json.RawMessage) ([]map[
 	return result, tags
 }
 
-func (s *LinkService) GetExternalOutboundsChecked(raw *json.RawMessage, forClash bool) ([]map[string]interface{}, []string, error) {
+func (s *LinkService) GetExternalOutboundsChecked(raw *json.RawMessage, forClash bool, clientId ...uint) ([]map[string]interface{}, []string, error) {
 	var links []Link
 	if raw == nil || len(*raw) == 0 {
 		return nil, nil, nil
@@ -97,7 +153,6 @@ func (s *LinkService) GetExternalOutboundsChecked(raw *json.RawMessage, forClash
 	}
 	var outbounds []map[string]interface{}
 	var tags []string
-	var cache service.ExternalSubCacheService
 	parseLink := util.GetOutbound
 	if forClash {
 		parseLink = util.GetOutboundForClash
@@ -110,8 +165,8 @@ func (s *LinkService) GetExternalOutboundsChecked(raw *json.RawMessage, forClash
 				outbounds = append(outbounds, *outbound)
 				tags = append(tags, tag)
 			}
-		case "sub":
-			body, cached, err := cache.Resolve(link.Uri)
+		case "sub", "source":
+			body, cached, err := externalLinkBody(link, clientId)
 			if err != nil {
 				return nil, nil, err
 			}

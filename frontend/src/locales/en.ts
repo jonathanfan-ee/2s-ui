@@ -1,6 +1,28 @@
 import ui from './ui/en'
 
 export default {
+  subSources: {
+    "title": "Shared subscription sources",
+    "desc": "Maintain provider URLs once, then assign sources to clients. Client subscription addresses stay unchanged.",
+    "create": "Add source",
+    "edit": "Edit source and access",
+    "name": "Source name",
+    "url": "Upstream URL",
+    "urlHint": "URLs are write-only. Leave blank on edit to keep the saved URL.",
+    "enabled": "Include this source",
+    "policy": "Catalog sources always serve snapshots. Prewarm new URLs before assigning clients; a cold source returns 503 instead of a partial configuration.",
+    "clients": "Authorized clients",
+    "clientsHint": "Selection is explicit. Unchecking a client revokes this catalog grant; empty selection grants nobody.",
+    "inactive": "Disabled or expired",
+    "noClients": "Create a client first to assign access.",
+    "adopt": "Convert matching legacy links to catalog grants",
+    "adoptHint": "Optional. Prewarm first. Only exact matching subscription entries of the selected clients are removed; other links and client subscription addresses are retained.",
+    "remove": "Delete source",
+    "removeHint": "Delete “{name}” and its catalog grants? Separately stored legacy subscription links are not revoked.",
+    "empty": "No shared sources. Add one, prewarm it, then assign clients.",
+    "grantCount": "{n} authorized client(s)",
+    "cacheHint": "Catalog sources always read snapshots. The cache-read switch below applies to legacy per-client URLs; automatic refresh covers both."
+  },
   subCache: {
     "title": "External subscriptions",
     "desc": "Refresh shared sources in the background and serve persisted snapshots. Failed refreshes retain the last valid content.",

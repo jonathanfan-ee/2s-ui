@@ -1,5 +1,6 @@
 <template>
   <SettingsGroup :title="$t('subCache.title')" :desc="$t('subCache.desc')">
+    <p class="cache-note">{{ $t('subSources.cacheHint') }}</p>
     <p class="cache-note">{{ $t('subCache.limits') }}</p>
     <div v-if="!loaded">{{ $t('loading') }}</div>
     <template v-else>
@@ -58,7 +59,7 @@ const config = reactive({ enabled: false, autoRefresh: false, refreshMinutes: 5 
 const sources = ref<Source[]>([])
 const loaded = ref(false)
 const busy = ref(false)
-const canEnable = computed(() => loaded.value && sources.value.every(s => s.ready))
+const canEnable = computed(() => loaded.value && sources.value.filter(s => s.references > 0).every(s => s.ready))
 const validInterval = computed(() => Number.isInteger(config.refreshMinutes) && config.refreshMinutes >= 5 && config.refreshMinutes <= 1440)
 const warmKeys = computed(() => sources.value.filter(s => !s.paused && !s.requested && !s.refreshing).map(s => s.key))
 const jsonOptions = { headers: { 'Content-Type': 'application/json' } }

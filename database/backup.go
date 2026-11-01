@@ -88,6 +88,8 @@ func GetDb(exclude string) ([]byte, error) {
 		&model.Cert{},
 		&model.ExternalSubSnapshot{},
 		&model.ExternalSubAttempt{},
+		&model.ExternalSubSource{},
+		&model.ExternalSubGrant{},
 	)
 	if err != nil {
 		return nil, err
@@ -108,6 +110,23 @@ func GetDb(exclude string) ([]byte, error) {
 	var changes []model.Changes
 	var snapshots []model.ExternalSubSnapshot
 	var attempts []model.ExternalSubAttempt
+	var sources []model.ExternalSubSource
+	var grants []model.ExternalSubGrant
+
+	if err := db.Find(&sources).Error; err != nil {
+		return nil, err
+	} else if len(sources) > 0 {
+		if err := backupDb.CreateInBatches(sources, backupBatchSize).Error; err != nil {
+			return nil, err
+		}
+	}
+	if err := db.Find(&grants).Error; err != nil {
+		return nil, err
+	} else if len(grants) > 0 {
+		if err := backupDb.CreateInBatches(grants, backupBatchSize).Error; err != nil {
+			return nil, err
+		}
+	}
 
 	// Validated snapshots and the request budget survive a backup/restore.
 	if err := db.Find(&snapshots).Error; err != nil {

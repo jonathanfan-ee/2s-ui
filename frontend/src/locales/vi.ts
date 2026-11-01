@@ -1,6 +1,28 @@
 import ui from './ui/vi'
 
 export default {
+  subSources: {
+    "title": "Nguồn đăng ký dùng chung",
+    "desc": "Duy trì URL nhà cung cấp một lần rồi cấp cho từng người dùng. Địa chỉ đăng ký của người dùng không đổi.",
+    "create": "Thêm nguồn",
+    "edit": "Sửa nguồn và quyền",
+    "name": "Tên nguồn",
+    "url": "URL đăng ký gốc",
+    "urlHint": "URL chỉ ghi, không hiển thị lại. Để trống khi sửa để giữ URL đã lưu.",
+    "enabled": "Đưa nguồn vào đăng ký",
+    "policy": "Nguồn danh mục luôn dùng ảnh chụp. Nạp trước URL mới rồi cấp quyền; nguồn chưa có ảnh chụp trả 503 thay vì cấu hình thiếu nút.",
+    "clients": "Người dùng được cấp quyền",
+    "clientsHint": "Chọn rõ người được cấp quyền. Bỏ chọn thu hồi quyền danh mục này; để trống không cấp cho ai.",
+    "inactive": "Đã tắt hoặc hết hạn",
+    "noClients": "Tạo người dùng trước khi cấp nguồn.",
+    "adopt": "Chuyển liên kết cũ trùng URL sang quyền danh mục",
+    "adoptHint": "Tùy chọn; cần nạp trước. Chỉ xóa đăng ký cũ có URL khớp hoàn toàn của người được chọn; giữ liên kết khác và địa chỉ đăng ký.",
+    "remove": "Xóa nguồn",
+    "removeHint": "Xóa “{name}” và quyền danh mục? Liên kết đăng ký cũ lưu riêng không bị thu hồi.",
+    "empty": "Chưa có nguồn dùng chung. Thêm, nạp trước rồi cấp quyền.",
+    "grantCount": "{n} người dùng được cấp",
+    "cacheHint": "Danh mục luôn đọc ảnh chụp. Công tắc đệm bên dưới chỉ dành cho URL cũ của từng người dùng; tự động làm mới áp dụng cho cả hai."
+  },
   subCache: {
     "title": "Đăng ký bên ngoài",
     "desc": "Làm mới nguồn dùng chung ở nền và phân phối ảnh chụp đã lưu. Khi lỗi, giữ lại nội dung hợp lệ gần nhất.",

@@ -153,6 +153,8 @@ func InitDB(dbPath string) error {
 		&model.Cert{},
 		&model.ExternalSubSnapshot{},
 		&model.ExternalSubAttempt{},
+		&model.ExternalSubSource{},
+		&model.ExternalSubGrant{},
 		&model.LoginAttempt{},
 	)
 	if err != nil {

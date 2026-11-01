@@ -36,6 +36,10 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 	action := c.Param("postAction")
 
 	switch action {
+	case "saveExternalSubSource":
+		a.ApiService.SaveExternalSubSource(c, loginUser)
+	case "deleteExternalSubSource":
+		a.ApiService.DeleteExternalSubSource(c, loginUser)
 	case "configureExternalSubCache":
 		a.ApiService.ConfigureExternalSubCache(c, loginUser)
 	case "refreshExternalSubs":
@@ -112,6 +116,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 	action := c.Param("getAction")
 
 	switch action {
+	case "externalSubSources":
+		a.ApiService.GetExternalSubSources(c)
 	case "externalSubCache":
 		a.ApiService.GetExternalSubCache(c)
 	case "logout":

@@ -62,7 +62,11 @@ func (j *JsonService) GetJson(subId string, format string) (*string, []string, e
 		return nil, nil, err
 	}
 
-	extOutbounds, extTags, err := j.LinkService.GetExternalOutboundsChecked(&client.Links, false)
+	clientLinks, err := j.LinkService.LinksForClient(client)
+	if err != nil {
+		return nil, nil, err
+	}
+	extOutbounds, extTags, err := j.LinkService.GetExternalOutboundsChecked(&clientLinks, false, client.Id)
 	if err != nil {
 		return nil, nil, err
 	}

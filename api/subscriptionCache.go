@@ -38,3 +38,33 @@ func (*ApiService) RefreshExternalSubs(c *gin.Context) {
 	var cache service.ExternalSubCacheService
 	jsonMsg(c, "", cache.Queue(request.Keys, request.Resume))
 }
+
+func (*ApiService) GetExternalSubSources(c *gin.Context) {
+	var catalog service.ExternalSubSourceService
+	result, err := catalog.List()
+	jsonObj(c, result, err)
+}
+
+func (*ApiService) SaveExternalSubSource(c *gin.Context, actor string) {
+	var input service.ExternalSubSourceWrite
+	if err := c.ShouldBindJSON(&input); err != nil {
+		jsonMsg(c, "", err)
+		return
+	}
+	var catalog service.ExternalSubSourceService
+	id, err := catalog.Save(input, actor)
+	jsonMsgObj(c, "save", gin.H{"id": id}, err)
+}
+
+func (*ApiService) DeleteExternalSubSource(c *gin.Context, actor string) {
+	var input struct {
+		Id       string `json:"id"`
+		Revision uint64 `json:"revision"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		jsonMsg(c, "", err)
+		return
+	}
+	var catalog service.ExternalSubSourceService
+	jsonMsg(c, "", catalog.Delete(input.Id, input.Revision, actor))
+}

@@ -1,7 +1,9 @@
 # External subscription snapshots (opt-in)
 
-This feature caches the existing clients' external subscription entries
-(`type: "sub"` in `Client.Links`). The exact URL is the source identity: active
+This feature caches existing clients' external subscription entries
+(`type: "sub"` in `Client.Links`) and the
+[shared source catalog](subscription-source-catalog.md). The exact URL is the
+snapshot identity; catalog source IDs remain stable when URLs change. Active
 clients using the same URL share a snapshot and refresh schedule. Disabling or
 expiring a client still prevents subscription exports, even if its source is
 cached. This does not introduce shared user credentials or change subscription
@@ -9,19 +11,21 @@ URLs.
 
 ## Enable
 
-1. Open **Settings → External subscriptions**. Sources come from enabled,
-   unexpired clients' existing external subscription entries.
+1. Open **Settings → Shared subscription sources**. The cache controls list
+   enabled catalog sources and active clients' existing external URLs.
 2. Choose **Queue refresh for all**. Manual refreshes work while both switches
    are off. A background poll runs every 15 seconds and handles at most one due
    source, so a queue of sources is processed gradually.
 3. Wait until every source is **Ready**. Cache reads cannot be enabled while an
-   assigned source has no valid snapshot.
+   source used by an active client has no valid snapshot. Unused catalog sources
+   can be prepared separately.
 4. Enable **Serve cached snapshots**, optionally enable **Automatic refresh**,
    choose a collection interval (5–1440 minutes, default 5), then **Apply cache
    settings**. These controls save separately and do not restart the proxy core.
 
-Both switches default off. With cache reads off, subscriptions keep their legacy
-live-fetch behavior. With cache reads on, downloads only read persisted snapshots;
+Both switches default off. Catalog sources always read snapshots. The cache-read
+switch applies only to legacy per-client URLs: with it off, they retain live-fetch
+behavior. With it on, their downloads only read persisted snapshots;
 there is no fallback to an upstream request. Adding an unprimed source after
 activation makes that client's export fail with HTTP 503 and `Retry-After: 300`,
 instead of publishing a partial configuration that could replace a working one.
@@ -47,7 +51,8 @@ five minutes just because source collection is scheduled every five minutes.
   A job waiting for this local budget stays queued and retries after a minute,
   without counting the wait as a provider failure.
 - A source is leased during a fetch. An expired/replaced lease or a source no
-  longer assigned to any active client cannot publish that job's response.
+  longer present as an enabled catalog source or an active legacy URL cannot
+  publish that job's response.
 - Source status never includes the snapshot payload, complete upstream URL,
   URL query/token or lease. Fetch errors use a fixed, URL-free vocabulary.
 
@@ -77,8 +82,8 @@ kept private.
 
 ## Scope
 
-This is the first cache phase, not a migration/deployment procedure. A central
-source catalog independent of client URLs, native Clash snapshots, per-user
-client templates, remote fixed-egress collectors and legacy subscription URL
-routes remain separate work. Scheduled requests currently originate from the
+This is not a migration/deployment procedure. The shared source catalog and
+client grants are described separately. Native Clash snapshots, per-user client
+templates, remote fixed-egress collectors and legacy subscription URL routes
+remain separate work. Scheduled requests currently originate from the
 panel host's IPv4; this feature does not contact an existing external collector.

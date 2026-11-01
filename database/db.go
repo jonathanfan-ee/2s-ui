@@ -156,6 +156,10 @@ func InitDB(dbPath string) error {
 		&model.ExternalSubSource{},
 		&model.ExternalSubGrant{},
 		&model.ExternalCollectorNonce{},
+		&model.SubscriptionTemplate{},
+		&model.ClientSubscriptionTemplate{},
+		&model.LegacySubscriptionHost{},
+		&model.LegacySubscriptionAlias{},
 		&model.LoginAttempt{},
 	)
 	if err != nil {

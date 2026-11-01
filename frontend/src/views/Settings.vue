@@ -20,7 +20,7 @@
       <Tabs v-model="tab" page :mb="0" :tabs="tabItems" style="border-bottom: none; flex: 1 1 auto; min-width: 0;" />
       <!-- 证书页的每个操作都立即生效，没有待保存的表单，摆着保存/重启只会让人以为
            申请完证书还得再点一下 -->
-      <div v-if="tab !== 'certs'" class="head-actions">
+      <div v-if="!['certs', 'distribution', 'externalSubs'].includes(tab)" class="head-actions">
         <Btn variant="primary" sm :loading="loading" :disabled="!stateChange || proxyBlocked" @click="save">
           <Ico name="check" :size="15" /> {{ $t('actions.save') }}
         </Btn>
@@ -128,6 +128,8 @@
                   :placeholder="'announce: Hello!\nannounce-url: https://t.me/example'"></textarea>
       </SRow>
     </SettingsGroup>
+
+    <SubscriptionDistributionPanel v-else-if="tab === 'distribution'" />
 
     <div v-else-if="tab === 'externalSubs'">
       <ExternalSubSourcesPanel />
@@ -422,6 +424,7 @@ import ToggleRow from '@/components/ui/ToggleRow.vue'
 import DomainInput from '@/components/ui/DomainInput.vue'
 import CertsPanel from '@/components/settings/CertsPanel.vue'
 import ExternalSubCachePanel from '@/components/settings/ExternalSubCachePanel.vue'
+import SubscriptionDistributionPanel from '@/components/settings/SubscriptionDistributionPanel.vue'
 import ExternalSubSourcesPanel from '@/components/settings/ExternalSubSourcesPanel.vue'
 import { loadCerts, certsLoaded, findCert, daysLeft } from '@/plugins/certs'
 
@@ -437,6 +440,7 @@ const tabItems = computed((): [string, string][] => [
   ['interface', i18n.global.t('setting.interface')],
   ['sub', i18n.global.t('setting.sub')],
   ['externalSubs', i18n.global.t('subSources.title')],
+  ['distribution', i18n.global.t('subDistribution.title')],
   ['jsonSub', i18n.global.t('setting.jsonSub')],
   ['clashSub', i18n.global.t('setting.clashSub')],
   ['notify', i18n.global.t('setting.notify')],

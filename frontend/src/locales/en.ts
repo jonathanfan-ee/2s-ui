@@ -1,6 +1,33 @@
 import ui from './ui/en'
 
 export default {
+  subDistribution: {
+    name: "Name",
+    edit: "Edit",
+    remove: "Delete",
+
+    nodePrefix: "Node name prefix",
+    prefixHint: "Changes exported labels for template filtering; stored snapshots and connection credentials stay unchanged.",
+    "title": "Subscription policies and migration",
+    "desc": "Assign stored rule templates per client and map historical URLs to one central identity.",
+    "template": "Rule template",
+    "format": "Output format",
+    "templateHint": "Clash: full YAML with __AUTO_INSERT_NODES__ and optional group filters. Static proxies and proxy-providers are refused. JSON: existing sing-box extension shape.",
+    "assignmentHint": "One template per client per format. Selecting a client replaces their previous assignment for this format.",
+    "alias": "Historical URL mapping",
+    "oldUrl": "Original subscription URL",
+    "aliasHint": "Use a dedicated legacy hostname. URLs are write-only; blank edits preserve the mapping. Shared URLs must map to a shared central identity with the same grants.",
+    "client": "Central client",
+    "auto": "Detect from client User-Agent",
+    "clashOverride": "Clash template override",
+    "jsonOverride": "JSON template override",
+    "inherit": "Inherit client template / global defaults",
+    "expiry": "Link expiry (blank: use client validity)",
+    "addTemplate": "Add template",
+    "addAlias": "Map historical URL",
+    "deleteHint": "Delete “{name}”? Assigned templates must be detached first. Deleted historical URLs stop working.",
+    "rolloutHint": "These controls save immediately without restarting the core. Host routing, DNS and certificates require a separate migration; saving a mapping alone does not switch live traffic."
+},
   subSources: {
     "title": "Shared subscription sources",
     "desc": "Maintain provider URLs once, then assign sources to clients. Client subscription addresses stay unchanged.",

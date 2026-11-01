@@ -13,6 +13,7 @@ import (
 
 	"github.com/shenaba/2s-ui/database"
 	"github.com/shenaba/2s-ui/database/model"
+	"github.com/shenaba/2s-ui/util"
 	"gorm.io/gorm"
 	ormlog "gorm.io/gorm/logger"
 )
@@ -29,6 +30,7 @@ type ExternalSubSourceWrite struct {
 	URL         string  `json:"url"`
 	Enabled     bool    `json:"enabled"`
 	ClientIds   *[]uint `json:"clientIds"`
+	NodePrefix  *string `json:"nodePrefix"`
 	CollectorId *string `json:"collectorId"`
 	AdoptLegacy bool    `json:"adoptLegacy"`
 }
@@ -40,6 +42,7 @@ type ExternalSubSourceView struct {
 	Enabled     bool                   `json:"enabled"`
 	Revision    uint64                 `json:"revision"`
 	ClientIds   []uint                 `json:"clientIds"`
+	NodePrefix  string                 `json:"nodePrefix"`
 	CollectorId string                 `json:"collectorId"`
 	Cache       ExternalSubCacheStatus `json:"cache"`
 }
@@ -107,7 +110,7 @@ func (*ExternalSubSourceService) List() (*ExternalSubCatalog, error) {
 				cache.References++
 			}
 		}
-		result.Sources = append(result.Sources, ExternalSubSourceView{Id: source.Id, Name: source.Name, Host: host, Enabled: source.Enabled, Revision: source.Revision, ClientIds: ids, CollectorId: source.CollectorId, Cache: cache})
+		result.Sources = append(result.Sources, ExternalSubSourceView{Id: source.Id, Name: source.Name, Host: host, Enabled: source.Enabled, Revision: source.Revision, ClientIds: ids, CollectorId: source.CollectorId, NodePrefix: source.NodePrefix, Cache: cache})
 	}
 	return result, nil
 }
@@ -149,6 +152,12 @@ func (*ExternalSubSourceService) Save(input ExternalSubSourceWrite, actor string
 			if input.Revision != source.Revision {
 				return ErrExternalSubSourceConflict
 			}
+		}
+		if input.NodePrefix != nil {
+			if utf8.RuneCountInString(*input.NodePrefix) > 64 || strings.ContainsFunc(*input.NodePrefix, unicode.IsControl) {
+				return errors.New("source-node-prefix-invalid")
+			}
+			source.NodePrefix = *input.NodePrefix
 		}
 		oldURL := source.URL
 		oldCollector := source.CollectorId
@@ -331,7 +340,15 @@ func (*ExternalSubSourceService) Resolve(id string, clientId uint, native ...boo
 		return "", ErrExternalSubCacheUnavailable
 	}
 	var cache ExternalSubCacheService
-	return cache.snapshot(source.URL, native...)
+	body, err := cache.snapshot(source.URL, native...)
+	if err != nil {
+		return "", err
+	}
+	body, err = util.PrefixSubscriptionNodes(body, source.NodePrefix)
+	if err != nil {
+		return "", ErrExternalSubCacheUnavailable
+	}
+	return body, nil
 }
 
 // Adoption touches only exact matching external-subscription entries in the

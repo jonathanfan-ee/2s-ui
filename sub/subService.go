@@ -17,7 +17,7 @@ type SubService struct {
 	LinkService
 }
 
-func (s *SubService) GetSubs(subId string) (*string, []string, error) {
+func (s *SubService) GetSubs(subId string, options ...service.SubscriptionRenderOptions) (*string, []string, error) {
 	var err error
 
 	client, err := s.getClientBySubId(subId)
@@ -44,6 +44,9 @@ func (s *SubService) GetSubs(subId string) (*string, []string, error) {
 	headers := s.getClientHeaders(client)
 
 	subEncode, _ := s.SettingService.GetSubEncode()
+	if len(options) > 0 && options[0].Encode != nil {
+		subEncode = *options[0].Encode
+	}
 	if subEncode {
 		result = base64.StdEncoding.EncodeToString([]byte(result))
 	}

@@ -6,6 +6,7 @@ type ExternalSubSource struct {
 	Id          string `json:"id" gorm:"primaryKey;size:64"`
 	Name        string `json:"name"`
 	URL         string `json:"-"`
+	NodePrefix  string `json:"nodePrefix"`
 	CollectorId string `json:"collectorId"`
 	Enabled     bool   `json:"enabled"`
 	Revision    uint64 `json:"revision"`

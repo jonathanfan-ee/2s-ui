@@ -1,6 +1,33 @@
 import ui from './ui/zhcn'
 
 export default {
+  subDistribution: {
+    name: "名称",
+    edit: "编辑",
+    remove: "删除",
+
+    nodePrefix: "节点名称前缀",
+    prefixHint: "仅修改输出名称，用于模板按“备用”等标签筛选；不改变节点凭据或已缓存内容。",
+    "title": "订阅规则与迁移",
+    "desc": "为中央用户分配已保存的规则模板，将历史订阅地址映射到对应的中央身份。",
+    "template": "规则模板",
+    "format": "输出格式",
+    "templateHint": "Clash：完整 YAML，支持 __AUTO_INSERT_NODES__ 和代理组 filter；禁止静态节点及 proxy-providers。JSON：沿用 sing-box 扩展模板格式。",
+    "assignmentHint": "每位用户每种格式只能分配一个模板；选中用户会替换其该格式的原模板。",
+    "alias": "历史订阅地址映射",
+    "oldUrl": "原始订阅地址",
+    "aliasHint": "使用独立的历史订阅域名。地址只写入不回显，编辑时留空保留原映射。多人共享的旧链接应对应权限一致的共享中央身份。",
+    "client": "中央用户",
+    "auto": "按客户端 User-Agent 识别",
+    "clashOverride": "指定 Clash 模板",
+    "jsonOverride": "指定 JSON 模板",
+    "inherit": "继承用户模板／全局默认值",
+    "expiry": "链接到期时间（留空沿用用户有效期）",
+    "addTemplate": "添加模板",
+    "addAlias": "映射历史地址",
+    "deleteHint": "删除“{name}”？仍被使用的模板需先解除关联；删除的历史链接将失效。",
+    "rolloutHint": "此页独立保存并立即生效，无需重启内核。域名路由、DNS 和证书需另行迁移，仅保存映射不会切换现有流量。"
+},
   subSources: {
     "title": "统一订阅源",
     "desc": "机场 URL 集中维护一次，再授权给不同用户；用户订阅地址保持不变。",

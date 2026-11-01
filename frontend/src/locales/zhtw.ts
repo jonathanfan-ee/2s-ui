@@ -1,6 +1,33 @@
 import ui from './ui/zhtw'
 
 export default {
+  subDistribution: {
+    name: "名稱",
+    edit: "編輯",
+    remove: "刪除",
+
+    nodePrefix: "節點名稱前綴",
+    prefixHint: "僅修改輸出名稱，供範本按標籤篩選；不改變節點憑證或快取內容。",
+    "title": "訂閱規則與遷移",
+    "desc": "為中央使用者分配已儲存的規則範本，將歷史訂閱網址映射至對應的中央身分。",
+    "template": "規則範本",
+    "format": "輸出格式",
+    "templateHint": "Clash：完整 YAML，支援 __AUTO_INSERT_NODES__ 及代理群組 filter；禁止靜態節點及 proxy-providers。JSON：沿用 sing-box 擴充範本格式。",
+    "assignmentHint": "每位使用者每種格式只能分配一個範本；選取使用者會取代該格式的原範本。",
+    "alias": "歷史訂閱網址映射",
+    "oldUrl": "原始訂閱網址",
+    "aliasHint": "使用獨立的歷史訂閱網域。網址只寫入不回顯，編輯時留空保留映射。共用舊連結應對應權限一致的共用中央身分。",
+    "client": "中央使用者",
+    "auto": "依用戶端 User-Agent 識別",
+    "clashOverride": "指定 Clash 範本",
+    "jsonOverride": "指定 JSON 範本",
+    "inherit": "繼承使用者範本／全域預設值",
+    "expiry": "連結到期時間（留空沿用使用者有效期）",
+    "addTemplate": "新增範本",
+    "addAlias": "映射歷史網址",
+    "deleteHint": "刪除「{name}」？使用中的範本需先解除關聯；刪除的歷史連結將失效。",
+    "rolloutHint": "此頁獨立儲存並立即生效，無需重啟核心。網域路由、DNS 及憑證需另行遷移，僅儲存映射不會切換現有流量。"
+},
   subSources: {
     "title": "統一訂閱來源",
     "desc": "機場 URL 集中維護一次，再授權給不同用戶；用戶訂閱地址保持不變。",

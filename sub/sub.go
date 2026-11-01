@@ -48,6 +48,9 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	}
 
 	engine := gin.Default()
+	// Credential paths must be matched exactly, including on reserved legacy hosts.
+	engine.RedirectTrailingSlash = false
+	engine.RedirectFixedPath = false
 	// The same middleware the panel uses. Clients that send Accept-Encoding:
 	// gzip -- sing-box, mihomo and the browser on the dashboard all do -- get a
 	// subscription several times smaller, which counts on a mobile link; the
@@ -64,6 +67,7 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 		return nil, err
 	}
 
+	engine.Use((&SubHandler{}).legacySubscriptions())
 	if subDomain != "" {
 		engine.Use(middleware.DomainValidator(subDomain))
 	}

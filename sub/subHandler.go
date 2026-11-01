@@ -109,10 +109,10 @@ func (s *SubHandler) subs(c *gin.Context) {
 
 // A non-success status lets proxy clients retain their previous configuration.
 func (s *SubHandler) subscriptionError(c *gin.Context, err error) {
-	if errors.Is(err, service.ErrExternalSubCacheUnavailable) {
+	if errors.Is(err, service.ErrExternalSubCacheUnavailable) || errors.Is(err, service.ErrSubscriptionPolicyUnavailable) {
 		c.Header("Retry-After", "300")
 		c.Header("Cache-Control", "no-store")
-		c.String(http.StatusServiceUnavailable, "Subscription snapshot unavailable; try again later.")
+		c.String(http.StatusServiceUnavailable, "Subscription configuration unavailable; try again later.")
 		return
 	}
 	logger.Error(err)

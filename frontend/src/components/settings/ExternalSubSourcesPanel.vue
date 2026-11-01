@@ -15,6 +15,8 @@
           </Select>
         </SRow>
         <p class="source-note">{{ $t('subCache.collectorHint') }}</p>
+        <SRow :label="$t('subDistribution.nodePrefix')"><input v-model="form.nodePrefix" class="input" maxlength="64" /></SRow>
+        <p class="source-note">{{ $t('subDistribution.prefixHint') }}</p>
         <ToggleRow v-model="form.enabled" :label="$t('subSources.enabled')" />
         <p class="source-note">{{ $t('subSources.policy') }}</p>
         <div class="source-label">{{ $t('subSources.clients') }}</div>
@@ -84,7 +86,7 @@ import Modal from '@/components/ui/Modal.vue'
 import Select from '@/components/ui/Select.vue'
 
 type Source = {
-  id: string; name: string; host: string; enabled: boolean; revision: number; clientIds: number[]; collectorId: string
+  id: string; name: string; host: string; enabled: boolean; revision: number; clientIds: number[]; collectorId: string; nodePrefix: string
   cache: { key: string; ready: boolean; lastSuccess: number; universalReady: boolean; clashReady: boolean; clashLastSuccess: number; requested: boolean; refreshing: boolean; paused: boolean }
 }
 type Client = { id: number; name: string; enable: boolean; expiry: number }
@@ -97,7 +99,7 @@ const loading = ref(false)
 const busy = ref(false)
 const editing = ref(false)
 const deleting = ref<Source | null>(null)
-const form = reactive({ id: '', name: '', url: '', enabled: true, revision: 0, collectorId: '', clientIds: [] as number[], adoptLegacy: false })
+const form = reactive({ id: '', name: '', url: '', enabled: true, revision: 0, collectorId: '', nodePrefix: '', clientIds: [] as number[], adoptLegacy: false })
 const jsonOptions = { headers: { 'Content-Type': 'application/json' } }
 let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false
@@ -121,7 +123,7 @@ async function load() {
   }
 }
 function edit(source?: Source) {
-  Object.assign(form, { id: source?.id || '', name: source?.name || '', url: '', enabled: source?.enabled ?? true, revision: source?.revision || 0, collectorId: source?.collectorId || '', clientIds: [...(source?.clientIds || [])], adoptLegacy: false })
+  Object.assign(form, { id: source?.id || '', name: source?.name || '', url: '', enabled: source?.enabled ?? true, revision: source?.revision || 0, collectorId: source?.collectorId || '', nodePrefix: source?.nodePrefix || '', clientIds: [...(source?.clientIds || [])], adoptLegacy: false })
   editing.value = true
 }
 function close() { if (!busy.value) editing.value = false }

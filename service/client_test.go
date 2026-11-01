@@ -33,7 +33,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 	}
 	// One connection, or each pooled connection gets its own empty :memory: db.
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&model.Client{}, &model.Inbound{}, &model.Node{}, &model.Tls{}, &model.ExternalSubGrant{}); err != nil {
+	if err := db.AutoMigrate(&model.Client{}, &model.Inbound{}, &model.Node{}, &model.Tls{}, &model.ExternalSubGrant{}, &model.ClientSubscriptionTemplate{}, &model.LegacySubscriptionAlias{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db

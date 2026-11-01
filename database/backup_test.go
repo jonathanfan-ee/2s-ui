@@ -188,6 +188,15 @@ func TestGetDbBacksUpEveryTable(t *testing.T) {
 		t.Fatalf("catalog grant missing from backup: %v", err)
 	}
 
+	var template model.SubscriptionTemplate
+	if err := backupDb.First(&template, "id = ?", "template-test").Error; err != nil || template.Content != "rules: ['MATCH,DIRECT']" {
+		t.Fatalf("private template content missing from backup: %v", err)
+	}
+	var alias model.LegacySubscriptionAlias
+	if err := backupDb.First(&alias, "id = ?", "alias-test").Error; err != nil || alias.LookupKey != "synthetic-digest" {
+		t.Fatalf("legacy credential digest missing from backup: %v", err)
+	}
+
 	// The exemption is deliberate, so assert it rather than leaving it implied.
 	// Asked as HasTable rather than a COUNT so a correct run does not log a
 	// "no such table" error that reads like a failure.
@@ -223,6 +232,10 @@ func seedEveryTable(t *testing.T) {
 		&model.ExternalSubSource{Id: "source-test", Name: "provider", URL: "https://provider.example/sub", Enabled: true, Revision: 1},
 		&model.ExternalSubGrant{SourceId: "source-test", ClientId: 1},
 		&model.ExternalCollectorNonce{CollectorId: "fixture", Nonce: "nonce-fixture", CreatedAt: now * 1000, ExpiresAt: (now + 300) * 1000},
+		&model.SubscriptionTemplate{Id: "template-test", Name: "policy", Format: "clash", Content: "rules: ['MATCH,DIRECT']", Enabled: true, Revision: 1},
+		&model.ClientSubscriptionTemplate{ClientId: 1, Format: "clash", TemplateId: "template-test"},
+		&model.LegacySubscriptionHost{Host: "legacy.example"},
+		&model.LegacySubscriptionAlias{Id: "alias-test", Host: "legacy.example", LookupKey: "synthetic-digest", ClientId: 1, Enabled: true, DefaultFormat: "auto", Revision: 1},
 		&model.LoginAttempt{Scope: "ip", Key: "1.2.3.4", Failures: 1, WindowStart: now},
 	}
 	for _, row := range rows {

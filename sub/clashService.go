@@ -111,9 +111,19 @@ func echConfigForClash(config interface{}) string {
 	return base64.StdEncoding.EncodeToString(block.Bytes)
 }
 
-func (s *ClashService) GetClash(subId string) (*string, []string, error) {
+func (s *ClashService) GetClash(subId string, options ...service.SubscriptionRenderOptions) (*string, []string, error) {
 
 	client, inDatas, err := s.getData(subId)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var policies service.SubscriptionTemplateService
+	override := ""
+	if len(options) > 0 {
+		override = options[0].TemplateId
+	}
+	policy, err := policies.Resolve(client.Id, "clash", override)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -141,7 +151,10 @@ func (s *ClashService) GetClash(subId string) (*string, []string, error) {
 		basicConfig = basicClashConfig
 	}
 
-	resultStr, err := s.ConvertToClashMeta(outbounds, basicConfig, native...)
+	if policy != nil {
+		basicConfig = policy.Content
+	}
+	resultStr, err := s.convertToClashMeta(outbounds, basicConfig, policy != nil, native...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -162,6 +175,10 @@ func (s *ClashService) getClashConfig() (string, error) {
 }
 
 func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, basicConfig string, native ...util.NativeClash) (string, error) {
+	return s.convertToClashMeta(outbounds, basicConfig, false, native...)
+}
+
+func (s *ClashService) convertToClashMeta(outbounds *[]map[string]interface{}, basicConfig string, fullTemplate bool, native ...util.NativeClash) (string, error) {
 	var proxies []interface{}
 	proxyTags := make([]string, 0)
 	// Proxy name -> the proxy it dials through, for detours mihomo spells as
@@ -171,6 +188,9 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 	// One read for all three: they are needed on every subscription fetch and
 	// were three separate SELECTs on the settings table.
 	noDefGrp, sprtAll, defaultUdp, _ := s.SettingService.GetSubClashFlags()
+	if fullTemplate {
+		noDefGrp, sprtAll = true, true
+	}
 	byTag := make(map[string]map[string]interface{}, len(*outbounds))
 	for _, obMap := range *outbounds {
 		if tag, ok := obMap["tag"].(string); ok {
@@ -581,6 +601,9 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 		output["proxies"] = proxies
 	}
 
+	if fullTemplate {
+		expandTemplateGroups(output, proxyTags)
+	}
 	if err := buildProxyGroups(output, proxyTags, noDefGrp, sprtAll); err != nil {
 		return "", err
 	}
@@ -588,6 +611,9 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 		output["proxy-groups"] = append(proxyGroupList(output["proxy-groups"]), dependencies...)
 	}
 
+	if fullTemplate {
+		pruneEmptyTemplateGroups(output)
+	}
 	result, err := yaml.Marshal(output)
 	if err != nil {
 		return "", err

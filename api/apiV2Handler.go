@@ -51,6 +51,14 @@ func (a *APIv2Handler) postHandler(c *gin.Context) {
 	action := c.Param("postAction")
 
 	switch action {
+	case "saveSubscriptionTemplate":
+		a.ApiService.SaveSubscriptionTemplate(c, username)
+	case "deleteSubscriptionTemplate":
+		a.ApiService.DeleteSubscriptionTemplate(c, username)
+	case "saveLegacySubscriptionAlias":
+		a.ApiService.SaveLegacySubscriptionAlias(c, username)
+	case "deleteLegacySubscriptionAlias":
+		a.ApiService.DeleteLegacySubscriptionAlias(c, username)
 	case "saveExternalSubSource":
 		a.ApiService.SaveExternalSubSource(c, username)
 	case "deleteExternalSubSource":
@@ -112,6 +120,10 @@ func (a *APIv2Handler) getHandler(c *gin.Context) {
 	action := c.Param("getAction")
 
 	switch action {
+	case "subscriptionDistribution":
+		a.ApiService.GetSubscriptionDistribution(c)
+	case "subscriptionTemplate":
+		a.ApiService.GetSubscriptionTemplate(c)
 	case "externalSubSources":
 		a.ApiService.GetExternalSubSources(c)
 	case "externalSubCache":

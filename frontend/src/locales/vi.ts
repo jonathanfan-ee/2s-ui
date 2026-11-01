@@ -1,6 +1,32 @@
 import ui from './ui/vi'
 
 export default {
+  subDistribution: {
+    "title": "Quy tắc đăng ký và chuyển đổi",
+    "desc": "Gán mẫu quy tắc đã lưu cho từng người dùng và ánh xạ liên kết cũ tới tài khoản trung tâm.",
+    "name": "Tên",
+    "edit": "Sửa",
+    "remove": "Xóa",
+    "template": "Mẫu quy tắc",
+    "format": "Định dạng đầu ra",
+    "templateHint": "Clash: YAML đầy đủ với __AUTO_INSERT_NODES__ và bộ lọc nhóm. Không cho phép nút tĩnh hoặc proxy-providers. JSON: định dạng mở rộng sing-box hiện có.",
+    "assignmentHint": "Mỗi người dùng có một mẫu cho mỗi định dạng. Chọn người dùng sẽ thay thế mẫu cũ của định dạng đó.",
+    "alias": "Ánh xạ liên kết cũ",
+    "oldUrl": "Liên kết đăng ký gốc",
+    "aliasHint": "Dùng tên miền cũ riêng biệt. Liên kết chỉ được ghi; để trống khi sửa để giữ nguyên. Liên kết dùng chung phải ánh xạ tới tài khoản dùng chung có cùng quyền.",
+    "client": "Người dùng trung tâm",
+    "auto": "Nhận diện theo User-Agent",
+    "clashOverride": "Mẫu Clash riêng cho liên kết",
+    "jsonOverride": "Mẫu JSON riêng cho liên kết",
+    "inherit": "Kế thừa mẫu người dùng / mặc định chung",
+    "expiry": "Hạn liên kết (trống: theo người dùng)",
+    "addTemplate": "Thêm mẫu",
+    "addAlias": "Ánh xạ liên kết cũ",
+    "deleteHint": "Xóa “{name}”? Cần bỏ gán mẫu trước. Liên kết cũ đã xóa sẽ ngừng hoạt động.",
+    "rolloutHint": "Lưu có hiệu lực ngay, không khởi động lại lõi. Định tuyến tên miền, DNS và chứng chỉ cần chuyển đổi riêng; lưu ánh xạ không chuyển lưu lượng hiện tại.",
+    "nodePrefix": "Tiền tố tên nút",
+    "prefixHint": "Chỉ đổi nhãn khi xuất để lọc theo mẫu; không đổi bản lưu hay thông tin kết nối."
+},
   subSources: {
     "title": "Nguồn đăng ký dùng chung",
     "desc": "Duy trì URL nhà cung cấp một lần rồi cấp cho từng người dùng. Địa chỉ đăng ký của người dùng không đổi.",

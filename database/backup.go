@@ -91,6 +91,10 @@ func GetDb(exclude string) ([]byte, error) {
 		&model.ExternalSubSource{},
 		&model.ExternalSubGrant{},
 		&model.ExternalCollectorNonce{},
+		&model.SubscriptionTemplate{},
+		&model.ClientSubscriptionTemplate{},
+		&model.LegacySubscriptionHost{},
+		&model.LegacySubscriptionAlias{},
 	)
 	if err != nil {
 		return nil, err
@@ -133,6 +137,39 @@ func GetDb(exclude string) ([]byte, error) {
 		return nil, err
 	} else if len(nonces) > 0 {
 		if err := backupDb.CreateInBatches(nonces, backupBatchSize).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	var templates []model.SubscriptionTemplate
+	var templateAssignments []model.ClientSubscriptionTemplate
+	var legacyHosts []model.LegacySubscriptionHost
+	var legacyAliases []model.LegacySubscriptionAlias
+	if err := db.Find(&templates).Error; err != nil {
+		return nil, err
+	} else if len(templates) > 0 {
+		if err := backupDb.CreateInBatches(templates, backupBatchSize).Error; err != nil {
+			return nil, err
+		}
+	}
+	if err := db.Find(&templateAssignments).Error; err != nil {
+		return nil, err
+	} else if len(templateAssignments) > 0 {
+		if err := backupDb.CreateInBatches(templateAssignments, backupBatchSize).Error; err != nil {
+			return nil, err
+		}
+	}
+	if err := db.Find(&legacyHosts).Error; err != nil {
+		return nil, err
+	} else if len(legacyHosts) > 0 {
+		if err := backupDb.CreateInBatches(legacyHosts, backupBatchSize).Error; err != nil {
+			return nil, err
+		}
+	}
+	if err := db.Find(&legacyAliases).Error; err != nil {
+		return nil, err
+	} else if len(legacyAliases) > 0 {
+		if err := backupDb.CreateInBatches(legacyAliases, backupBatchSize).Error; err != nil {
 			return nil, err
 		}
 	}

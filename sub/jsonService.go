@@ -49,7 +49,7 @@ type JsonService struct {
 	LinkService
 }
 
-func (j *JsonService) GetJson(subId string, format string) (*string, []string, error) {
+func (j *JsonService) GetJson(subId string, format string, options ...service.SubscriptionRenderOptions) (*string, []string, error) {
 	var jsonConfig map[string]interface{}
 
 	client, inDatas, err := j.getData(subId)
@@ -57,6 +57,19 @@ func (j *JsonService) GetJson(subId string, format string) (*string, []string, e
 		return nil, nil, err
 	}
 
+	var policies service.SubscriptionTemplateService
+	override := ""
+	if len(options) > 0 {
+		override = options[0].TemplateId
+	}
+	policy, err := policies.Resolve(client.Id, "json", override)
+	if err != nil {
+		return nil, nil, err
+	}
+	var extension []string
+	if policy != nil {
+		extension = []string{policy.Content}
+	}
 	outbounds, outTags, links, err := j.getOutbounds(client.Config, inDatas, client.Remark)
 	if err != nil {
 		return nil, nil, err
@@ -93,7 +106,7 @@ func (j *JsonService) GetJson(subId string, format string) (*string, []string, e
 	// their operator's routing had silently gone missing. Failing the fetch
 	// says so instead, and the operator finds out from the first client that
 	// cannot refresh rather than never.
-	if err = j.addOthers(&jsonConfig, *outbounds); err != nil {
+	if err = j.addOthers(&jsonConfig, *outbounds, extension...); err != nil {
 		return nil, nil, err
 	}
 
@@ -568,7 +581,7 @@ func (j *JsonService) addDefaultOutbounds(outbounds *[]map[string]interface{}, o
 	*outbounds = append(outbound, *outbounds...)
 }
 
-func (j *JsonService) addOthers(jsonConfig *map[string]interface{}, outbounds []map[string]interface{}) error {
+func (j *JsonService) addOthers(jsonConfig *map[string]interface{}, outbounds []map[string]interface{}, extension ...string) error {
 	// Default routing rules, used only when the template doesn't define its own.
 	// When the template provides `rules`, they are used verbatim so the user has
 	// full control over ordering (e.g. rules before sniff) and which rules exist.
@@ -593,9 +606,15 @@ func (j *JsonService) addOthers(jsonConfig *map[string]interface{}, outbounds []
 		"rules":                 defaultRules,
 	}
 
-	othersStr, err := j.SettingService.GetSubJsonExt()
-	if err != nil {
-		return err
+	othersStr := ""
+	var err error
+	if len(extension) > 0 {
+		othersStr = extension[0]
+	} else {
+		othersStr, err = j.SettingService.GetSubJsonExt()
+		if err != nil {
+			return err
+		}
 	}
 	if len(othersStr) == 0 {
 		(*jsonConfig)["route"] = route

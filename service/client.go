@@ -446,6 +446,9 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 			}
 			inboundIds = common.UnionUintArray(inboundIds, clientInbounds)
 		}
+		if err = revokeClientSubscriptionPolicies(tx, ids); err != nil {
+			return nil, err
+		}
 		err = tx.Where("id in ?", ids).Delete(model.Client{}).Error
 		if err != nil {
 			return nil, err
@@ -466,9 +469,10 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 		if err != nil {
 			return nil, err
 		}
-		if err = tx.Where("client_id = ?", id).Delete(&model.ExternalSubGrant{}).Error; err != nil {
+		if err = revokeClientSubscriptionPolicies(tx, []uint{id}); err != nil {
 			return nil, err
 		}
+
 		err = tx.Where("id = ?", id).Delete(model.Client{}).Error
 		if err != nil {
 			return nil, err
@@ -1701,4 +1705,18 @@ func (s *ClientService) findInboundsChanges(tx *gorm.DB, client *model.Client, f
 	diffInbounds := common.DiffUintArray(oldInboundIds, newInboundIds)
 
 	return diffInbounds, nil
+}
+
+// Revoke bearer aliases in the same transaction as single or bulk deletion.
+func revokeClientSubscriptionPolicies(tx *gorm.DB, ids []uint) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	if err := tx.Where("client_id in ?", ids).Delete(&model.ExternalSubGrant{}).Error; err != nil {
+		return err
+	}
+	if err := tx.Where("client_id in ?", ids).Delete(&model.ClientSubscriptionTemplate{}).Error; err != nil {
+		return err
+	}
+	return tx.Model(&model.LegacySubscriptionAlias{}).Where("client_id in ?", ids).Updates(map[string]interface{}{"enabled": false, "client_id": 0, "revision": gorm.Expr("revision + 1")}).Error
 }

@@ -65,6 +65,10 @@ func (s *SubHandler) initRouter(g *gin.RouterGroup, assets fs.FS) error {
 }
 
 func (s *SubHandler) subs(c *gin.Context) {
+	if _, ok := c.Request.URL.Query()["source"]; ok {
+		s.sourceSnapshot(c, false)
+		return
+	}
 	var headers []string
 	var result *string
 	var err error
@@ -169,6 +173,10 @@ func (s *SubHandler) serveDashboard(c *gin.Context, subId string) {
 }
 
 func (s *SubHandler) subHeaders(c *gin.Context) {
+	if _, ok := c.Request.URL.Query()["source"]; ok {
+		s.sourceSnapshot(c, true)
+		return
+	}
 	subId := c.Param("subid")
 	client, err := s.SubService.getClientBySubId(subId)
 	if err != nil {

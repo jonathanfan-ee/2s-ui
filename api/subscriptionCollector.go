@@ -11,18 +11,22 @@ import (
 
 // Machine routes use HMAC and source-IP authentication, independently of panel
 // cookies or apiv2 administrator tokens. No collector registration defaults on.
-func NewCollectorHandler(group *gin.RouterGroup) {
-	group.POST("/tasks", func(c *gin.Context) { collectorRequest(c, false) })
-	group.POST("/results", func(c *gin.Context) { collectorRequest(c, true) })
+func NewCollectorHandler(group *gin.RouterGroup, peer ...func(*gin.Context) string) {
+	resolve := getRemoteIp
+	if len(peer) > 0 && peer[0] != nil {
+		resolve = peer[0]
+	}
+	group.POST("/tasks", func(c *gin.Context) { collectorRequest(c, false, resolve(c)) })
+	group.POST("/results", func(c *gin.Context) { collectorRequest(c, true, resolve(c)) })
 }
-func collectorRequest(c *gin.Context, upload bool) {
+func collectorRequest(c *gin.Context, upload bool, peer string) {
 	c.Header("Cache-Control", "no-store")
 	var collector service.ExternalCollectorService
 	limit := int64(4096)
 	if upload {
 		limit = 3 * 1024 * 1024
 	}
-	id, body, err := collector.Authenticate(c.Request, getRemoteIp(c), limit)
+	id, body, err := collector.Authenticate(c.Request, peer, limit)
 	if err != nil {
 		collectorError(c, err)
 		return

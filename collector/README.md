@@ -116,3 +116,49 @@ client connectivity before changing legacy distribution.
 
 This package alone does not migrate existing MiSub user URLs or templates. Their
 compatibility and the actual collector handoff remain separate rollout checks.
+
+## Optional subscription-listener control endpoint
+
+`SUI_SUB_COLLECTOR_API=true` registers only `/api/collector/tasks` and
+`/api/collector/results` on the subscription listener. It is off by default.
+It requires native HTTPS, a valid HMAC and the registered public socket-peer
+IPv4. Forwarding headers are deliberately ignored on this listener; use the
+existing management endpoint for a separately reviewed trusted-proxy setup.
+No browser/admin API is exposed by this flag. Registration still comes from
+`SUI_SUB_COLLECTORS`, separately from this non-secret opt-in flag.
+
+An agent may set `panelUrl` to an HTTPS subscription origin with a custom port,
+for example `https://panel.example:32443`. Only control-plane requests accept
+that configured port. Provider requests and provider redirects still require
+HTTPS port 443 and public IPv4 DNS results. TLS hostname verification and the
+persisted upstream rate limit are unchanged.
+
+## Internal raw source feeds for a legacy aggregator
+
+An administrator may create an opaque, dedicated client in group `@source-feed`
+with no self-hosted inbound grants, then grant it only the catalog source it
+must forward. Its ordinary subscription bearer is the credential. A raw feed is:
+
+```
+https://panel.example:32443/sub/OPAQUE_READER?source=SOURCE_ID
+```
+
+Universal fetchers receive the original universal snapshot. Clash/Mihomo UAs
+receive the original native Clash snapshot. `format=universal` or `format=clash`
+selects explicitly; no alternate-format fallback is performed. GET and HEAD
+check enabled state, expiry, quota, the internal group and exact source grant.
+Ordinary clients cannot use this mode even if they have a source grant.
+
+The handler reads only validated persistent snapshots, without applying node
+prefixes/templates or touching any provider, lease, cooldown or cache row.
+`Subscription-Userinfo`, `Last-Modified` and `X-Snapshot-Updated-At` belong to
+that provider snapshot, rather than the feed account or render time. Paused,
+missing, future-dated or over-15-minute snapshots fail with 503; invalid or
+revoked credentials fail with 404. Do not share these internal bearer URLs.
+
+This enables a controlled migration where the central panel owns collection
+while MiSub keeps its original profile/source identifiers and reads only these
+feeds. It does not itself change any deployed service, source, schedule or old
+link. Stop the old owner and honor its cooldown before activating the new owner;
+prewarm and compare both formats before changing distribution. Never create a
+cycle by feeding the central panel from MiSub while MiSub reads it back.

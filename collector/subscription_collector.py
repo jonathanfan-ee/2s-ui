@@ -40,10 +40,12 @@ def remaining(deadline):
     return seconds
 
 
-def validate_url(url):
+def validate_url(url, *, control=False):
     parts = urlsplit(url)
     if (parts.scheme != "https" or not parts.hostname or parts.username is not None
-            or parts.password is not None or parts.fragment or parts.port not in (None, 443)):
+            or parts.password is not None or parts.fragment
+            or (parts.port not in (None, 443) and not control)
+            or (parts.port is not None and not 1 <= parts.port <= 65535)):
         raise CollectorError("unsafe-target")
     return parts
 
@@ -72,9 +74,9 @@ def resolve_ipv4(host, deadline):
 
 
 class IPv4HTTPSConnection(http.client.HTTPSConnection):
-    def __init__(self, host, deadline):
+    def __init__(self, host, deadline, port=443):
         self.deadline = deadline
-        super().__init__(host, 443, timeout=remaining(deadline), context=ssl.create_default_context())
+        super().__init__(host, port, timeout=remaining(deadline), context=ssl.create_default_context())
 
     def connect(self):
         last_error = None
@@ -82,7 +84,7 @@ class IPv4HTTPSConnection(http.client.HTTPSConnection):
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
                 sock.settimeout(remaining(self.deadline))
-                sock.connect((ip, 443))
+                sock.connect((ip, self.port))
                 sock.settimeout(remaining(self.deadline))
                 # Pin the resolved address, retain the ORIGINAL TLS verification name.
                 self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
@@ -97,10 +99,10 @@ class IPv4HTTPSConnection(http.client.HTTPSConnection):
 
 class Transport:
     """Direct IPv4 TLS; intentionally independent of HTTP(S)_PROXY environment."""
-    def request(self, url, method="GET", headers=None, body=None, timeout=10, limit=MAX_BYTES):
-        parts = validate_url(url)
+    def request(self, url, method="GET", headers=None, body=None, timeout=10, limit=MAX_BYTES, *, control=False):
+        parts = validate_url(url, control=control)
         deadline = time.monotonic() + timeout
-        connection = IPv4HTTPSConnection(parts.hostname, deadline)
+        connection = IPv4HTTPSConnection(parts.hostname, deadline, parts.port or 443)
         response = None
         timer = None
         expired = threading.Event()
@@ -259,7 +261,7 @@ def api(config, path, value, transport):
     base = config.get("panelUrl") or config.get("misubUrl")
     url = base.rstrip("/") + path
     status, _, response = transport.request(url, "POST", signing_headers(config, urlsplit(url).path, body), body,
-                                            timeout=5, limit=128 * 1024)
+                                            timeout=5, limit=128 * 1024, control=True)
     if status != 200:
         raise CollectorError("misub-http-" + str(status))
     try:
@@ -306,7 +308,7 @@ def load_config(path):
         raise CollectorError("config-permissions-must-be-0600")
     config = json.loads(file.read_text())
     base = config.get("panelUrl") or config.get("misubUrl", "")
-    parts = validate_url(base)
+    parts = validate_url(base, control=True)
     if (parts.query or "%" in parts.path or any(part in (".", "..") for part in parts.path.split("/"))
             or (config.get("panelUrl") and config.get("misubUrl") and config["panelUrl"] != config["misubUrl"])
             or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", config.get("id", ""))):

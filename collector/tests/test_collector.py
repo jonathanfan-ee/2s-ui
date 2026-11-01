@@ -26,9 +26,11 @@ CONFIG = {"misubUrl": "https://misub.example", "id": "fixture", "secret": "fixtu
 class FakeTransport:
     def __init__(self):
         self.requests = []
+        self.control = []
 
-    def request(self, url, method="GET", headers=None, body=None, timeout=10, limit=collector.MAX_BYTES):
+    def request(self, url, method="GET", headers=None, body=None, timeout=10, limit=collector.MAX_BYTES, *, control=False):
         self.requests.append((url, method, headers, body))
+        self.control.append(control)
         if url.endswith("/api/collector/tasks"):
             return 200, {}, json.dumps({"tasks": [{"sourceId": "fixture", "url": "https://airport.example/sub?token=fixture-sensitive",
                 "urlHash": "fixture-hash", "leaseToken": "fixture-lease", "leaseUntil": int(time.time() * 1000 + 30000), "formats": ["clash", "universal"]}]}).encode()
@@ -181,7 +183,7 @@ class CollectorTests(unittest.TestCase):
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:
-            with patch.object(collector, "IPv4HTTPSConnection", side_effect=lambda host, deadline: http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=collector.remaining(deadline))):
+            with patch.object(collector, "IPv4HTTPSConnection", side_effect=lambda host, deadline, port=443: http.client.HTTPConnection("127.0.0.1", server.server_port, timeout=collector.remaining(deadline))):
                 # The local HTTP connector is injected only in tests. Production always uses TLS.
                 self.assertEqual(collector.Transport().request("https://fixture.example/ok")[2], b"fixture-body")
                 with self.assertRaisesRegex(collector.CollectorError, "response-too-large"):
@@ -204,6 +206,8 @@ class CollectorTests(unittest.TestCase):
             result = collector.run_once(CONFIG, directory, transport)
             self.assertEqual(result, {"status": "uploaded"})
             self.assertEqual(len(transport.requests), 4)
+            self.assertEqual(transport.control.count(True), 2)
+            self.assertEqual(transport.control.count(False), 2)
             upload = json.loads(transport.requests[-1][3])
             self.assertEqual(set(upload["snapshots"]), {"clash", "universal"})
             self.assertEqual(upload["snapshots"]["clash"]["userInfo"]["total"], 1024)
@@ -257,3 +261,31 @@ class PanelPrefixTests(unittest.TestCase):
                 self.assertTrue(path.startswith("/control/api/collector/"))
                 expected = collector.signing_headers(config, path, body, headers["X-Collector-Timestamp"], headers["X-Collector-Nonce"])
                 self.assertEqual(headers["X-Collector-Signature"], expected["X-Collector-Signature"])
+
+class DedicatedControlPortTests(unittest.TestCase):
+    def test_only_control_url_accepts_nondefault_https_port(self):
+        target = "https://panel.example:32443"
+        self.assertEqual(collector.validate_url(target, control=True).port, 32443)
+        with self.assertRaisesRegex(collector.CollectorError, "unsafe-target"):
+            collector.validate_url(target)
+        for target in ["http://panel.example:32443", "https://user:pass@panel.example:32443", "https://panel.example:0"]:
+            with self.assertRaises(collector.CollectorError):
+                collector.validate_url(target, control=True)
+        with tempfile.TemporaryDirectory() as directory:
+            file = Path(directory) / "config.json"
+            file.write_text(json.dumps({"panelUrl": "https://panel.example:32443", "id": "fixture", "secret": CONFIG["secret"]}))
+            os.chmod(file, 0o600)
+            self.assertEqual(collector.load_config(file)["panelUrl"], "https://panel.example:32443")
+
+    def test_control_connection_keeps_custom_port_and_tls_hostname(self):
+        class Sock:
+            def settimeout(self, value): pass
+            def connect(self, address): self.address = address
+            def close(self): pass
+        connection = collector.IPv4HTTPSConnection("panel.example", time.monotonic() + 1, 32443)
+        sock = Sock()
+        with patch.object(collector, "resolve_ipv4", return_value=["8.8.8.8"]), patch.object(collector.socket, "socket", return_value=sock), patch.object(connection._context, "wrap_socket", return_value=sock) as wrap:
+            connection.connect()
+            self.assertEqual(sock.address, ("8.8.8.8", 32443))
+            self.assertEqual(wrap.call_args.kwargs["server_hostname"], "panel.example")
+            self.assertEqual(connection._context.verify_mode, ssl.CERT_REQUIRED)

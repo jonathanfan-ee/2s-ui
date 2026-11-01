@@ -6,10 +6,12 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 	"time"
 
+	"github.com/shenaba/2s-ui/api"
 	"github.com/shenaba/2s-ui/config"
 	"github.com/shenaba/2s-ui/logger"
 	"github.com/shenaba/2s-ui/middleware"
@@ -70,6 +72,25 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	engine.Use((&SubHandler{}).legacySubscriptions())
 	if subDomain != "" {
 		engine.Use(middleware.DomainValidator(subDomain))
+	}
+	// Only the two signed machine routes are exposed, never the admin API.
+	// A direct HTTPS listener is required: forwarding headers cannot select
+	// the collector identity on this separately enabled public endpoint.
+	if os.Getenv("SUI_SUB_COLLECTOR_API") == "true" {
+		machines := engine.Group("/api/collector", func(c *gin.Context) {
+			if c.Request.TLS == nil {
+				c.AbortWithStatus(http.StatusNotFound)
+				return
+			}
+			c.Next()
+		})
+		api.NewCollectorHandler(machines, func(c *gin.Context) string {
+			peer, _, err := net.SplitHostPort(c.Request.RemoteAddr)
+			if err != nil {
+				return ""
+			}
+			return peer
+		})
 	}
 
 	g := engine.Group(subPath)

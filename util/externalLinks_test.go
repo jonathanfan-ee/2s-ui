@@ -129,3 +129,54 @@ func TestGetExternalSubBodyForms(t *testing.T) {
 		})
 	}
 }
+
+// An error response can still contain a syntactically valid subscription, for
+// example when a provider or an intermediary attaches a stale response body.
+// Neither export path may turn that failed fetch into working proxy entries.
+func TestGetExternalSubHTTPResponses(t *testing.T) {
+	const links = "trojan://fixture-password@node.example:443#fixture\n"
+	bodies := map[string]string{
+		"plain links":   links,
+		"base64 links":  base64.StdEncoding.EncodeToString([]byte(links)),
+		"sing-box JSON": `{"outbounds":[{"type":"trojan","tag":"fixture","server":"node.example","server_port":443,"password":"fixture-password"}]}`,
+	}
+	parsers := map[string]func(string) ([]map[string]interface{}, error){
+		"sing-box": GetExternalSub,
+		"Clash":    GetExternalSubForClash,
+	}
+	statuses := []int{
+		http.StatusOK,
+		http.StatusFound, // No Location: the final response is still not success.
+		http.StatusBadRequest,
+		http.StatusUnauthorized,
+		http.StatusForbidden,
+		http.StatusNotFound,
+		http.StatusTooManyRequests,
+		http.StatusInternalServerError,
+		http.StatusServiceUnavailable,
+	}
+	for bodyName, body := range bodies {
+		for parserName, parse := range parsers {
+			for _, status := range statuses {
+				t.Run(bodyName+"/"+parserName+"/"+http.StatusText(status), func(t *testing.T) {
+					srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.WriteHeader(status)
+						_, _ = w.Write([]byte(body))
+					}))
+					defer srv.Close()
+
+					got, err := parse(srv.URL)
+					if status != http.StatusOK {
+						if err == nil || len(got) != 0 {
+							t.Fatalf("HTTP %d produced %d proxy entries with error %v; want a failed subscription", status, len(got), err)
+						}
+						return
+					}
+					if err != nil || len(got) != 1 || got[0]["tag"] != "fixture" {
+						t.Fatalf("HTTP 200 produced %v, error %v; want the fixture proxy", got, err)
+					}
+				})
+			}
+		}
+	}
+}

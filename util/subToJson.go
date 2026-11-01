@@ -44,6 +44,10 @@ func GetExternalLink(url string) string {
 		return ""
 	}
 	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		logger.Warning("sub: external subscription returned HTTP status ", response.StatusCode)
+		return ""
+	}
 
 	// The body is an operator-configured URL's answer, which is not this
 	// panel's to size: an unbounded ReadAll lets a redirect to a large file --

@@ -1,280 +1,89 @@
-name: Release 2S-UI
-
+name: Build isolated 2S-UI pilot (fork only)
 on:
   workflow_dispatch:
-  release:
-    types: [published]
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/release.yml'
-      - 'frontend/**'
-      - '**.sh'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 's-ui.service'
-      - 's-ui.openrc'
-
-# Merging several PRs in a row queues one full matrix per push, and only the last
-# one builds the tree that ships. github.ref already separates a release run
-# (refs/tags/...) from a push run, and the cancel guard is belt-and-braces: a
-# publish must never be cancelled part-way through uploading its assets. The
-# group name has to stay distinct from windows.yml's, or the two would cancel
-# each other.
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'release' }}
-
 permissions:
-  contents: write
-
-env:
-  NODE_VERSION: "25"
-  CRONET_GO_VERSION: "98d539ce67568fb911654e66a14cf4247ed833ec"
-  CRONET_GO_REPO: https://github.com/sagernet/cronet-go.git
-  BOOTLIN_BASE_URL: https://toolchains.bootlin.com/downloads/releases/toolchains
-
+  contents: read
+concurrency:
+  group: isolated-pilot-build
+  cancel-in-progress: false
 jobs:
-  build-frontend:
-    runs-on: ubuntu-latest
+  build:
+    if: github.repository == 'jonathanfan-ee/2s-ui'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      SOURCE_COMMIT: 52b74167092d4c0d67fe46d043b04f4c0f3a388a
+      BUILD_TAGS: with_quic,with_grpc,with_utls,with_acme,with_gvisor,badlinkname,tfogo_checklinkname0,with_tailscale,with_cloudflared,with_openconnect,with_openvpn,with_usbip
+      CGO_ENABLED: '1'
+      GOOS: linux
+      GOARCH: amd64
+      CC: musl-gcc
     steps:
-      - name: Checkout repository (frontend only)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout fixed application revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          fetch-depth: 1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+          ref: 52b74167092d4c0d67fe46d043b04f4c0f3a388a
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          node-version: '25'
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
-
-      # Also builds the subscriber dashboard into frontend/subscriber/dist.
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm install
-          npm run build
-          cd ..
-
-      - name: Upload frontend dist
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: frontend-dist
-          path: frontend/dist/
-
-      - name: Upload subscriber dist
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: subscriber-dist
-          path: frontend/subscriber/dist/
-
-  build-linux:
-    name: build-${{ matrix.platform }}
-    needs: build-frontend
-    strategy:
-      fail-fast: false
-      matrix:
-        # `naive` mirrors what cronet actually ships -- do not flip it to widen
-        # coverage. cronet-go publishes one lib/linux_arm (no v6/v7 split) whose
-        # .ARM.attributes report Tag_CPU_arch=10 / Tag_CPU_name="7-A", i.e. an
-        # ARMv7-A baseline, and no s390x lib at all. Since armv6/armv5 build with
-        # GOARM=5/6 and share `arch: arm` with armv7, a naive build for them would
-        # link ARMv7 cronet objects into an ARMv6 binary: at best a link error, at
-        # worst a tarball that SIGILLs on the ARMv6 hardware it targets -- and CI
-        # cross-compiles, so it would never run the binary to catch it. Enabling it
-        # also skips the Bootlin toolchain below, which is gated on `naive != true`.
-        include:
-          - { platform: amd64, arch: amd64, bootlin: x86-64, naive: true }
-          - { platform: arm64, arch: arm64, bootlin: aarch64, naive: true }
-          - { platform: armv7, arch: arm, goarm: "7", bootlin: armv7-eabihf, naive: true }
-          - { platform: armv6, arch: arm, goarm: "6", bootlin: armv6-eabihf, naive: false }
-          - { platform: armv5, arch: arm, goarm: "5", bootlin: armv5-eabi, naive: false }
-          - { platform: "386", arch: "386", bootlin: x86-i686, naive: true }
-          - { platform: s390x, arch: s390x, bootlin: s390x-z13, naive: false }
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Download frontend dist
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: frontend-dist
-          path: web/html
-
-      # Overwrites the committed fallback index.html with the real dashboard.
-      # Without this the released binary embeds the placeholder page.
-      - name: Download subscriber dist
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: subscriber-dist
-          path: sub/dashboard
-
       - name: Setup Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
         with:
-          cache: false
           go-version-file: go.mod
-
-      # Naive platforms: use cronet toolchain only (no Bootlin).
-      - name: Clone cronet-go (cronet toolchain for naive)
-        if: matrix.naive
+          cache: true
+      - name: Install musl compiler on disposable runner
         run: |
-          set -e
-          git init ~/cronet-go
-          git -C ~/cronet-go remote add origin ${{ env.CRONET_GO_REPO }}
-          git -C ~/cronet-go fetch --depth=1 origin "${{ env.CRONET_GO_VERSION }}"
-          git -C ~/cronet-go checkout FETCH_HEAD
-          git -C ~/cronet-go submodule update --init --recursive --depth=1
-
-      - name: Regenerate Debian keyring (cronet sysroot)
-        if: matrix.naive
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y musl-tools
+      - name: Build both web interfaces
+        working-directory: frontend
         run: |
-          set -e
-          rm -f ~/cronet-go/naiveproxy/src/build/linux/sysroot_scripts/keyring.gpg
-          cd ~/cronet-go
-          GPG_TTY=/dev/null ./naiveproxy/src/build/linux/sysroot_scripts/generate_keyring.sh
-
-      - name: Cache Chromium toolchain
-        if: matrix.naive
-        id: cache-chromium-toolchain
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+          npm ci
+          npm run build
+      - name: Embed built interfaces
+        run: |
+          mkdir -p web/html sub/dashboard
+          cp -R frontend/dist/. web/html/
+          cp -R frontend/subscriber/dist/. sub/dashboard/
+      - name: Validate source and tests
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          go mod download github.com/sagernet/sing-box
+          bash scripts/check-protocol-copies.sh
+          go vet -tags "$BUILD_TAGS" ./...
+          go test -tags "$BUILD_TAGS" -ldflags='-checklinkname=0' ./...
+          python3 -B -m unittest discover -s collector/tests
+      - name: Build static pilot binary
+        run: |
+          mkdir -p pilot-artifact
+          go build -trimpath -tags "$BUILD_TAGS" -ldflags="-w -s -checklinkname=0 -linkmode external -extldflags '-static'" -o pilot-artifact/sui .
+          cp collector/subscription_collector.py pilot-artifact/subscription_collector.py
+          file pilot-artifact/sui
+          if readelf -l pilot-artifact/sui | grep -q 'INTERP'; then exit 1; fi
+          if readelf -d pilot-artifact/sui 2>/dev/null | grep -q '(NEEDED)'; then exit 1; fi
+          ./pilot-artifact/sui -v
+          go version -m pilot-artifact/sui > pilot-artifact/go-build-info.txt
+          grep -F "vcs.revision=$SOURCE_COMMIT" pilot-artifact/go-build-info.txt
+          python3 - <<'METADATA'
+          import json,os,hashlib,pathlib
+          path=pathlib.Path('pilot-artifact/sui')
+          info={'sourceCommit':os.environ['SOURCE_COMMIT'],'workflowRef':os.environ['GITHUB_WORKFLOW_REF'],'runId':os.environ['GITHUB_RUN_ID'],'platform':'linux/amd64','binarySha256':hashlib.sha256(path.read_bytes()).hexdigest(),'collectorSha256':hashlib.sha256(pathlib.Path('pilot-artifact/subscription_collector.py').read_bytes()).hexdigest(),'buildTags':os.environ['BUILD_TAGS']}
+          pathlib.Path('pilot-artifact/build-metadata.json').write_text(json.dumps(info,indent=2)+'\n')
+          METADATA
+          cd pilot-artifact
+          sha256sum sui subscription_collector.py > SHA256SUMS
+          cd ..
+          tar -czf 2s-ui-pilot-linux-amd64-52b7416.tar.gz -C pilot-artifact .
+          sha256sum 2s-ui-pilot-linux-amd64-52b7416.tar.gz > 2s-ui-pilot-linux-amd64-52b7416.tar.gz.sha256
+      - name: Upload reviewable build artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
+          name: 2s-ui-pilot-linux-amd64-52b7416
           path: |
-            ~/cronet-go/naiveproxy/src/third_party/llvm-build/
-            ~/cronet-go/naiveproxy/src/gn/out/
-            ~/cronet-go/naiveproxy/src/chrome/build/pgo_profiles/
-            ~/cronet-go/naiveproxy/src/out/sysroot-build/
-          key: chromium-toolchain-${{ matrix.platform }}-musl-${{ env.CRONET_GO_VERSION }}
-
-      - name: Build cronet lib and set toolchain env (CC, CXX, CGO_LDFLAGS, PATH)
-        if: matrix.naive
-        run: |
-          set -e
-          cd ~/cronet-go
-          go run ./cmd/build-naive --target=linux/${{ matrix.arch }} --libc=musl download-toolchain
-          go run ./cmd/build-naive --target=linux/${{ matrix.arch }} --libc=musl env | while IFS= read -r line; do
-            line="${line#export }"
-            [[ -z "$line" ]] && continue
-            echo "$line" >> $GITHUB_ENV
-          done
-
-      - name: Set Go build env (all platforms)
-        run: |
-          echo "CGO_ENABLED=1" >> $GITHUB_ENV
-          echo "GOOS=linux" >> $GITHUB_ENV
-          echo "GOARCH=${{ matrix.arch }}" >> $GITHUB_ENV
-          if [ -n "${{ matrix.goarm }}" ]; then echo "GOARM=${{ matrix.goarm }}" >> $GITHUB_ENV; fi
-
-      # Non-naive platforms only: Bootlin musl (armv5, s390x).
-      - name: Set up Bootlin musl (armv5, s390x)
-        if: ${{ matrix.naive != true }}
-        run: |
-          set -e
-          BOOTLIN_ARCH="${{ matrix.bootlin }}"
-          echo "Resolving Bootlin musl toolchain for arch=$BOOTLIN_ARCH (platform=${{ matrix.platform }})"
-          TARBALL_BASE="${{ env.BOOTLIN_BASE_URL }}/$BOOTLIN_ARCH/tarballs/"
-          TARBALL_URL=$(curl -fsSL "$TARBALL_BASE" | grep -oE "${BOOTLIN_ARCH}--musl--stable-[^\"]+\\.tar\\.xz" | sort -r | head -n1)
-          [ -z "$TARBALL_URL" ] && { echo "Failed to locate Bootlin musl toolchain for arch=$BOOTLIN_ARCH" >&2; exit 1; }
-          echo "Downloading: $TARBALL_URL"
-          cd /tmp
-          curl -fL -sS -o "$(basename "$TARBALL_URL")" "$TARBALL_BASE/$TARBALL_URL"
-          tar -xf "$(basename "$TARBALL_URL")"
-          TOOLCHAIN_DIR=$(find . -maxdepth 1 -type d -name "${BOOTLIN_ARCH}--musl--stable-*" | head -n1)
-          TOOLCHAIN_DIR="$(realpath "$TOOLCHAIN_DIR")"
-          BIN_DIR="$TOOLCHAIN_DIR/bin"
-          echo "PATH=$BIN_DIR:$PATH" >> $GITHUB_ENV
-          CC=$(find "$BIN_DIR" -maxdepth 1 \( -name '*-gcc.br_real' -o -name '*-gcc' \) -type f -executable 2>/dev/null | grep -v g++ | head -n1)
-          [ -z "$CC" ] && { echo "No gcc found in $BIN_DIR" >&2; exit 1; }
-          echo "CC=$(realpath "$CC")" >> $GITHUB_ENV
-          SYSROOT=""
-          F=$(find "$TOOLCHAIN_DIR" -name "libc-header-start.h" 2>/dev/null | head -1)
-          if [ -n "$F" ]; then SYSROOT=$(dirname "$(dirname "$(dirname "$(dirname "$F")")")"); fi
-          if [ -n "$SYSROOT" ] && [ -d "$SYSROOT" ]; then
-            echo "CGO_CFLAGS=--sysroot=$SYSROOT" >> $GITHUB_ENV
-            echo "CGO_LDFLAGS=--sysroot=$SYSROOT -static" >> $GITHUB_ENV
-          fi
-
-      - name: Download Go modules (with retry)
-        run: |
-          set -e
-          export GODEBUG=http2client=0
-          for i in 1 2 3 4 5; do
-            if go mod download -x; then
-              echo "go mod download succeeded"
-              exit 0
-            fi
-            echo "go mod download failed (attempt $i), retrying in $((i * 10))s..."
-            sleep $((i * 10))
-          done
-          echo "go mod download failed after 5 attempts" >&2
-          exit 1
-
-      - name: Build 2s-ui
-        run: |
-          set -e
-          BUILD_TAGS="with_quic,with_grpc,with_utls,with_acme,with_gvisor,badlinkname,tfogo_checklinkname0,with_tailscale,with_cloudflared,with_openconnect,with_openvpn,with_usbip"
-          [ "${{ matrix.naive }}" = "true" ] && BUILD_TAGS="${BUILD_TAGS},with_naive_outbound,with_musl"
-          go build -ldflags="-w -s -checklinkname=0 -linkmode external -extldflags '-static'" -tags "$BUILD_TAGS" -o sui main.go
-          file sui
-          ldd sui 2>/dev/null || echo "Static binary confirmed"
-
-          mkdir s-ui
-          cp sui s-ui/
-          cp s-ui.service s-ui/
-          cp s-ui.openrc s-ui/
-          cp s-ui.sh s-ui/
-
-      - name: Package
-        run: tar -zcvf s-ui-linux-${{ matrix.platform }}.tar.gz s-ui
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: s-ui-linux-${{ matrix.platform }}
-          path: ./s-ui-linux-${{ matrix.platform }}.tar.gz
-          retention-days: 30
-
-      - name: Upload to Release
-        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # 2.11.5
-        if: |
-          github.event_name == 'release' && github.event.action == 'published'
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
-          file: s-ui-linux-${{ matrix.platform }}.tar.gz
-          asset_name: s-ui-linux-${{ matrix.platform }}.tar.gz
-          prerelease: true
-          overwrite: true
-
-  # Publish a single SHA256SUMS covering every release tarball. The panel's
-  # in-place self-update downloads this and verifies the archive against it
-  # before touching the running install, so a tampered download can't run as
-  # root. Must run after every build so the file lists all platforms.
-  checksums:
-    needs: build-linux
-    if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all release tarballs
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: s-ui-linux-*
-          merge-multiple: true
-
-      - name: Generate SHA256SUMS
-        run: sha256sum s-ui-linux-*.tar.gz | tee SHA256SUMS
-
-      - name: Upload SHA256SUMS to Release
-        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # 2.11.5
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.event.release.tag_name }}
-          file: SHA256SUMS
-          asset_name: SHA256SUMS
-          prerelease: true
-          overwrite: true
+            2s-ui-pilot-linux-amd64-52b7416.tar.gz
+            2s-ui-pilot-linux-amd64-52b7416.tar.gz.sha256
+          retention-days: 14

@@ -60,8 +60,8 @@ jobs:
       - name: Build static pilot binary
         run: |
           mkdir -p pilot-artifact
-          cp collector/subscription_collector.py pilot-artifact/subscription_collector.py
           go build -trimpath -tags "$BUILD_TAGS" -ldflags="-w -s -checklinkname=0 -linkmode external -extldflags '-static'" -o pilot-artifact/sui .
+          cp collector/subscription_collector.py pilot-artifact/subscription_collector.py
           file pilot-artifact/sui
           if readelf -l pilot-artifact/sui | grep -q 'INTERP'; then exit 1; fi
           if readelf -d pilot-artifact/sui 2>/dev/null | grep -q '(NEEDED)'; then exit 1; fi

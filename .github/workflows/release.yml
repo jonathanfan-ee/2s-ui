@@ -1,9 +1,6 @@
 name: Build isolated 2S-UI pilot (fork only)
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - codex/dmit-us-pilot-build
 permissions:
   contents: read
 concurrency:

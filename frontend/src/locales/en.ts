@@ -24,9 +24,15 @@ export default {
     "cacheHint": "Catalog sources always read snapshots. The cache-read switch below applies to legacy per-client URLs; automatic refresh covers both."
   },
   subCache: {
+    universal: "Universal snapshot",
+    native: "Native Clash snapshot",
+    collector: "Collection exit",
+    panelEgress: "This panel IPv4",
+    collectorUnavailable: "Collector registration unavailable",
+    collectorHint: "Register remote credentials and the verified IPv4 on the server. Remote sources never fall back to panel fetching.",
     "title": "External subscriptions",
     "desc": "Refresh shared sources in the background and serve persisted snapshots. Failed refreshes retain the last valid content.",
-    "limits": "Public HTTPS on port 443 over IPv4 only. URI lists, Base64 and sing-box JSON are supported; Clash YAML is not yet supported. At most 4 requests per minute, including redirects. This interval controls collection, not client updates.",
+    "limits": "Public HTTPS 443 and IPv4 only. Universal links and native Clash snapshots are stored separately. At most 4 request attempts/minute, including redirects. This interval controls collection, not client updates.",
     "reads": "Serve cached snapshots",
     "enableHint": "Prewarm every source before enabling. These controls save separately and do not restart the proxy core.",
     "auto": "Automatic refresh",

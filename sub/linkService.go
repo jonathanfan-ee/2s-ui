@@ -62,17 +62,17 @@ func (s *LinkService) LinksForClient(client *model.Client) (json.RawMessage, err
 	return json.Marshal(result)
 }
 
-func externalLinkBody(link Link, clientId []uint) (string, bool, error) {
+func externalLinkBody(link Link, clientId []uint, native ...bool) (string, bool, error) {
 	if link.Type == "source" {
 		if len(clientId) == 0 {
 			return "", true, service.ErrExternalSubCacheUnavailable
 		}
 		var catalog service.ExternalSubSourceService
-		body, err := catalog.Resolve(link.Uri, clientId[0])
+		body, err := catalog.Resolve(link.Uri, clientId[0], native...)
 		return body, true, err
 	}
 	var cache service.ExternalSubCacheService
-	return cache.Resolve(link.Uri)
+	return cache.Resolve(link.Uri, native...)
 }
 
 // The legacy wrappers remain useful to standalone converters. Subscription
@@ -233,4 +233,53 @@ func (s *LinkService) addClientInfo(uri string, clientInfo string) string {
 	default:
 		return uri + clientInfo
 	}
+}
+
+// Clash exports select a native snapshot before considering universal fallback.
+// Keeping this separate avoids a lossy native -> sing-box -> Clash round trip.
+func (s *LinkService) ClashExternalSources(raw *json.RawMessage, clientId uint) ([]map[string]interface{}, []string, []util.NativeClash, error) {
+	var links []Link
+	if raw == nil || len(*raw) == 0 {
+		return nil, nil, nil, nil
+	}
+	if err := json.Unmarshal(*raw, &links); err != nil {
+		return nil, nil, nil, err
+	}
+	var outbounds []map[string]interface{}
+	var tags []string
+	var native []util.NativeClash
+	for _, link := range links {
+		switch link.Type {
+		case "external":
+			outbound, tag, err := util.GetOutboundForClash(link.Uri, 0)
+			if err == nil && outbound != nil && tag != "" {
+				outbounds = append(outbounds, *outbound)
+				tags = append(tags, tag)
+			}
+		case "sub", "source":
+			body, cached, err := externalLinkBody(link, []uint{clientId}, true)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			if document, err := util.ParseNativeClash(body); err == nil {
+				document.Namespace = link.Uri
+				native = append(native, *document)
+				continue
+			}
+			parsed, err := util.ParseExternalSubData(body, true)
+			if err != nil {
+				if cached {
+					return nil, nil, nil, service.ErrExternalSubCacheUnavailable
+				}
+				continue
+			}
+			for _, outbound := range parsed {
+				if tag, _ := outbound["tag"].(string); tag != "" {
+					outbounds = append(outbounds, outbound)
+					tags = append(tags, tag)
+				}
+			}
+		}
+	}
+	return outbounds, tags, native, nil
 }

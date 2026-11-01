@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -22,9 +23,19 @@ const maxCachedSubBytes = 8 << 20
 var errSubRequestBudget = errors.New("request-budget-exhausted")
 
 type externalSubFetchResult struct {
-	body    string
-	status  int
-	retryAt int64
+	body     string
+	status   int
+	retryAt  int64
+	clash    *externalSubFormatResult
+	userInfo map[string]uint64
+}
+
+type externalSubFormatResult struct {
+	body     string
+	status   int
+	retryAt  int64
+	err      error
+	userInfo map[string]uint64
 }
 
 // New scheduled sources are deliberately limited to public HTTPS over IPv4.
@@ -94,10 +105,32 @@ func dialPublicSubscription(ctx context.Context, _ string, address string) (net.
 }
 
 func fetchCachedExternalSub(ctx context.Context, raw string, reserve func() error) (externalSubFetchResult, error) {
-	return fetchCachedSubWithTransport(ctx, raw, reserve, cachedSubTransport)
+	return fetchCachedFormatsWithTransport(ctx, raw, reserve, cachedSubTransport)
+}
+
+func fetchCachedFormatsWithTransport(ctx context.Context, raw string, reserve func() error, transport http.RoundTripper) (externalSubFetchResult, error) {
+	var wait sync.WaitGroup
+	wait.Add(2)
+	var universal, native externalSubFetchResult
+	var universalErr, nativeErr error
+	go func() {
+		defer wait.Done()
+		universal, universalErr = fetchCachedFormat(ctx, raw, reserve, transport, false)
+	}()
+	go func() {
+		defer wait.Done()
+		native, nativeErr = fetchCachedFormat(ctx, raw, reserve, transport, true)
+	}()
+	wait.Wait()
+	universal.clash = &externalSubFormatResult{body: native.body, status: native.status, retryAt: native.retryAt, err: nativeErr, userInfo: native.userInfo}
+	return universal, universalErr
 }
 
 func fetchCachedSubWithTransport(ctx context.Context, raw string, reserve func() error, transport http.RoundTripper) (externalSubFetchResult, error) {
+	return fetchCachedFormat(ctx, raw, reserve, transport, false)
+}
+
+func fetchCachedFormat(ctx context.Context, raw string, reserve func() error, transport http.RoundTripper, native bool) (externalSubFetchResult, error) {
 	var result externalSubFetchResult
 	if err := validateCachedSubURL(raw); err != nil {
 		return result, err
@@ -122,7 +155,11 @@ func fetchCachedSubWithTransport(ctx context.Context, raw string, reserve func()
 	if err != nil {
 		return result, errors.New("source-request-invalid")
 	}
-	req.Header.Set("User-Agent", "SubscriptionFetcher/1.0")
+	if native {
+		req.Header.Set("User-Agent", "ClashMeta/1.19.32")
+	} else {
+		req.Header.Set("User-Agent", "SubscriptionFetcher/1.0")
+	}
 	req.Header.Set("Accept-Encoding", "identity")
 	response, err := client.Do(req)
 	if err != nil {
@@ -149,8 +186,12 @@ func fetchCachedSubWithTransport(ctx context.Context, raw string, reserve func()
 	if len(body) > maxCachedSubBytes || !utf8.Valid(body) {
 		return result, errors.New("source-body-invalid-or-too-large")
 	}
-	result.body = util.DecodeExternalSubBody(string(body))
-	if err := validateCachedSubBody(result.body); err != nil {
+	result.body = string(body)
+	result.userInfo = parseSubscriptionUserInfo(response.Header.Get("Subscription-Userinfo"))
+	if !native {
+		result.body = util.DecodeExternalSubBody(result.body)
+	}
+	if err := validateExternalSubFormat(result.body, native); err != nil {
 		return result, err
 	}
 	return result, nil
@@ -188,4 +229,34 @@ func externalSubRetryAt(header string, now int64) int64 {
 		return deadline.Unix()
 	}
 	return 0
+}
+
+func validateExternalSubFormat(body string, native bool) error {
+	if native {
+		if _, err := util.ParseNativeClash(body); err != nil {
+			return errors.New("source-native-clash-invalid")
+		}
+		return nil
+	}
+	return validateCachedSubBody(body)
+}
+
+func parseSubscriptionUserInfo(header string) map[string]uint64 {
+	result := map[string]uint64{}
+	for _, part := range strings.Split(header, ";") {
+		key, value, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if !ok {
+			continue
+		}
+		switch key {
+		case "upload", "download", "total", "expire":
+			if n, err := strconv.ParseUint(strings.TrimSpace(value), 10, 64); err == nil && n <= 1<<53 {
+				result[key] = n
+			}
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }

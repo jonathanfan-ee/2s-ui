@@ -90,6 +90,7 @@ func GetDb(exclude string) ([]byte, error) {
 		&model.ExternalSubAttempt{},
 		&model.ExternalSubSource{},
 		&model.ExternalSubGrant{},
+		&model.ExternalCollectorNonce{},
 	)
 	if err != nil {
 		return nil, err
@@ -112,6 +113,7 @@ func GetDb(exclude string) ([]byte, error) {
 	var attempts []model.ExternalSubAttempt
 	var sources []model.ExternalSubSource
 	var grants []model.ExternalSubGrant
+	var nonces []model.ExternalCollectorNonce
 
 	if err := db.Find(&sources).Error; err != nil {
 		return nil, err
@@ -124,6 +126,13 @@ func GetDb(exclude string) ([]byte, error) {
 		return nil, err
 	} else if len(grants) > 0 {
 		if err := backupDb.CreateInBatches(grants, backupBatchSize).Error; err != nil {
+			return nil, err
+		}
+	}
+	if err := db.Find(&nonces).Error; err != nil {
+		return nil, err
+	} else if len(nonces) > 0 {
+		if err := backupDb.CreateInBatches(nonces, backupBatchSize).Error; err != nil {
 			return nil, err
 		}
 	}

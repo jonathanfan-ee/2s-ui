@@ -1,0 +1,20 @@
+[Unit]
+Description=Fixed IPv4 subscription collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=subscription-collector
+Group=subscription-collector
+ExecStart=/usr/bin/python3 -B /opt/subscription-collector/subscription_collector.py
+StateDirectory=subscription-collector
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_INET AF_UNIX
+TimeoutStartSec=30

@@ -24,9 +24,15 @@ export default {
     "cacheHint": "统一来源始终从快照分发；下方缓存分发开关只控制旧的逐用户 URL，自动刷新则同时适用于两者。"
   },
   subCache: {
+    universal: "通用格式快照",
+    native: "Clash 原生快照",
+    collector: "采集出口",
+    panelEgress: "本面板 IPv4",
+    collectorUnavailable: "采集器登记不可用",
+    collectorHint: "远程采集器需先在服务端登记凭据及实际出口 IPv4；远程来源不会退回面板拉取。",
     "title": "外部订阅缓存",
     "desc": "后台去重采集外部订阅，客户端读取持久快照。刷新失败时保留上次有效内容。",
-    "limits": "仅支持公开 HTTPS 443 和 IPv4。支持链接列表、Base64 和 sing-box JSON，暂不支持 Clash YAML。每分钟最多 4 次请求（含重定向）。此间隔控制后台采集，不是客户端订阅更新间隔。",
+    "limits": "仅支持公开 HTTPS 443 和 IPv4。通用链接与 Clash 原生格式分开保存。每分钟最多 4 次请求（含重定向）；此间隔控制后台采集，不是客户端更新间隔。",
     "reads": "从缓存分发订阅",
     "enableHint": "先预热所有来源再启用。这里独立保存，不会重启代理内核。",
     "auto": "自动刷新",

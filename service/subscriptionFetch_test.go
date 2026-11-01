@@ -10,6 +10,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -126,5 +127,24 @@ func TestExternalSubRetryAfter(t *testing.T) {
 		if got := externalSubRetryAt(test.header, now); got != test.want {
 			t.Errorf("Retry-After %q=%d want %d", test.header, got, test.want)
 		}
+	}
+}
+
+func TestNativeDualFetchNegotiatesIndependentFormats(t *testing.T) {
+	var requests atomic.Int64
+	transport := snapshotRoundTripper(func(request *http.Request) (*http.Response, error) {
+		requests.Add(1)
+		if request.Header.Get("User-Agent") == "ClashMeta/1.19.32" {
+			return snapshotResponse(200, collectorNativeBody), nil
+		}
+		if request.Header.Get("User-Agent") != "SubscriptionFetcher/1.0" {
+			t.Error("unexpected format negotiation")
+		}
+		return snapshotResponse(503, "<html>temporary error</html>"), nil
+	})
+	var budget atomic.Int64
+	result, err := fetchCachedFormatsWithTransport(context.Background(), snapshotTestURL, func() error { budget.Add(1); return nil }, transport)
+	if err == nil || result.clash == nil || result.clash.err != nil || result.clash.body != collectorNativeBody || requests.Load() != 2 || budget.Load() != 2 {
+		t.Fatal("format negotiation or isolation failed", err)
 	}
 }

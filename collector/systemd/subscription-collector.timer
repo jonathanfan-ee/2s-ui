@@ -1,0 +1,12 @@
+[Unit]
+Description=Poll subscription collector control plane
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=60s
+AccuracySec=5s
+RandomizedDelaySec=5s
+Unit=subscription-collector.service
+
+[Install]
+WantedBy=timers.target

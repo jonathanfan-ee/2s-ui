@@ -38,8 +38,10 @@ five minutes just because source collection is scheduled every five minutes.
 ## Refresh behavior
 
 - Successful nonempty URI lists, Base64 URI lists, or sing-box JSON `outbounds`
-  replace the persisted snapshot atomically. Native Clash YAML is not supported
-  by this phase. Existing Clash/XHTTP conversion remains in use.
+  replace the persisted snapshot atomically. Native Clash YAML is stored independently;
+  [native export behavior](native-clash-snapshots.md) preserves node-specific
+  options, dependencies and endpoint hosts. Existing universal/XHTTP conversion
+  remains the fallback.
 - Non-2xx responses, HTML/login pages, empty/unreadable responses and unsupported
   content do not replace the last valid snapshot. Generic failures back off
   exponentially, up to six hours. Success resets this backoff.
@@ -82,8 +84,8 @@ kept private.
 
 ## Scope
 
-This is not a migration/deployment procedure. The shared source catalog and
-client grants are described separately. Native Clash snapshots, per-user client
-templates, remote fixed-egress collectors and legacy subscription URL routes
-remain separate work. Scheduled requests currently originate from the
-panel host's IPv4; this feature does not contact an existing external collector.
+This is not a migration/deployment procedure. The shared source catalog, native
+Clash snapshots and optional collector are described separately. Per-user client
+templates and legacy subscription URL compatibility remain separate work.
+Installing, registering and handing off a deployed collector requires a reviewed
+production rollout; no existing collector is changed by developing this code.

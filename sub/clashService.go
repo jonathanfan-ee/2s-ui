@@ -127,7 +127,7 @@ func (s *ClashService) GetClash(subId string) (*string, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	extOutbounds, extTags, err := s.LinkService.GetExternalOutboundsChecked(&clientLinks, true, client.Id)
+	extOutbounds, extTags, native, err := s.LinkService.ClashExternalSources(&clientLinks, client.Id)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -141,7 +141,7 @@ func (s *ClashService) GetClash(subId string) (*string, []string, error) {
 		basicConfig = basicClashConfig
 	}
 
-	resultStr, err := s.ConvertToClashMeta(outbounds, basicConfig)
+	resultStr, err := s.ConvertToClashMeta(outbounds, basicConfig, native...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -161,7 +161,7 @@ func (s *ClashService) getClashConfig() (string, error) {
 	return subClashExt, nil
 }
 
-func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, basicConfig string) (string, error) {
+func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, basicConfig string, native ...util.NativeClash) (string, error) {
 	var proxies []interface{}
 	proxyTags := make([]string, 0)
 	// Proxy name -> the proxy it dials through, for detours mihomo spells as
@@ -571,6 +571,10 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 		}
 	}
 
+	proxies, proxyTags, dependencies, err := mergeNativeClash(output, proxies, proxyTags, native)
+	if err != nil {
+		return "", err
+	}
 	if p, ok := output["proxies"].([]interface{}); ok {
 		output["proxies"] = append(p, proxies...)
 	} else {
@@ -579,6 +583,9 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 
 	if err := buildProxyGroups(output, proxyTags, noDefGrp, sprtAll); err != nil {
 		return "", err
+	}
+	if len(dependencies) > 0 {
+		output["proxy-groups"] = append(proxyGroupList(output["proxy-groups"]), dependencies...)
 	}
 
 	result, err := yaml.Marshal(output)

@@ -222,6 +222,7 @@ func seedEveryTable(t *testing.T) {
 		&model.ExternalSubAttempt{At: now},
 		&model.ExternalSubSource{Id: "source-test", Name: "provider", URL: "https://provider.example/sub", Enabled: true, Revision: 1},
 		&model.ExternalSubGrant{SourceId: "source-test", ClientId: 1},
+		&model.ExternalCollectorNonce{CollectorId: "fixture", Nonce: "nonce-fixture", CreatedAt: now * 1000, ExpiresAt: (now + 300) * 1000},
 		&model.LoginAttempt{Scope: "ip", Key: "1.2.3.4", Failures: 1, WindowStart: now},
 	}
 	for _, row := range rows {

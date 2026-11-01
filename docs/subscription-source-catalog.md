@@ -98,12 +98,11 @@ The admin API's write-only URL policy does not remove URLs from database backups
 
 This change adds catalog and access management; it does not install a panel,
 modify an existing collector, copy live provider URLs, or migrate distributed
-MiSub links. Native Clash snapshots, per-client templates and legacy URL routes
-remain separate acceptance work.
+MiSub links. Native Clash snapshots and the optional collector have their own
+documentation. Per-client templates and legacy URL routes remain separate acceptance work.
 
 The existing external collector contract uses signed task/result requests and
-leases, and returns separate universal and native Clash responses. Its adapter
-must use this stable source identity, the current URL hash and a revision/lease
-fence, while retaining independent snapshot validation for each format. Reusing
-an admin token or asking a client to fetch a provider is not the collector path.
-No collector credentials or operational registration are part of this change.
+leases, and returns separate universal and native Clash responses. The
+[adapter package](../collector/README.md) uses stable source identities, URL hashes, revision/lease fences and independent per-format validation. Reusing an
+admin token or asking a client to fetch a provider is not the collector path.
+Real collector credentials and operational registration are not included.

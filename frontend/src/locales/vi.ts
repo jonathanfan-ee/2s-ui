@@ -24,9 +24,15 @@ export default {
     "cacheHint": "Danh mục luôn đọc ảnh chụp. Công tắc đệm bên dưới chỉ dành cho URL cũ của từng người dùng; tự động làm mới áp dụng cho cả hai."
   },
   subCache: {
+    universal: "Ảnh chụp phổ thông",
+    native: "Ảnh chụp Clash gốc",
+    collector: "Đường ra thu thập",
+    panelEgress: "IPv4 của bảng điều khiển",
+    collectorUnavailable: "Không có đăng ký bộ thu thập",
+    collectorHint: "Đăng ký bí mật và IPv4 đã xác minh trên máy chủ. Nguồn từ xa không chuyển sang tải tại bảng điều khiển.",
     "title": "Đăng ký bên ngoài",
     "desc": "Làm mới nguồn dùng chung ở nền và phân phối ảnh chụp đã lưu. Khi lỗi, giữ lại nội dung hợp lệ gần nhất.",
-    "limits": "Chỉ HTTPS công khai, cổng 443, IPv4. Hỗ trợ danh sách URI, Base64 và sing-box JSON; chưa hỗ trợ Clash YAML. Tối đa 4 yêu cầu/phút, gồm chuyển hướng. Khoảng này dành cho bộ thu thập, không phải máy khách.",
+    "limits": "Chỉ HTTPS 443 công khai và IPv4. Lưu riêng liên kết phổ thông và Clash gốc. Tối đa 4 lần thử/phút, gồm chuyển hướng. Khoảng này dành cho bộ thu thập, không phải máy khách.",
     "reads": "Phân phối từ bộ nhớ đệm",
     "enableHint": "Nạp trước mọi nguồn rồi bật. Lưu riêng, không khởi động lại lõi proxy.",
     "auto": "Tự động làm mới",

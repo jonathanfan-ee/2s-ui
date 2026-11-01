@@ -24,9 +24,15 @@ export default {
     "cacheHint": "統一來源始終從快照分發；下方快取分發開關只控制舊的逐用戶 URL，自動更新則同時適用於兩者。"
   },
   subCache: {
+    universal: "通用格式快照",
+    native: "Clash 原生快照",
+    collector: "擷取出口",
+    panelEgress: "本面板 IPv4",
+    collectorUnavailable: "擷取器登記不可用",
+    collectorHint: "遠端擷取器需先在伺服器登記憑證及實際出口 IPv4；遠端來源不會退回面板擷取。",
     "title": "外部訂閱快取",
     "desc": "背景去重擷取外部訂閱，用戶端讀取持久快照。更新失敗時保留上次有效內容。",
-    "limits": "僅支援公開 HTTPS 443 和 IPv4。支援連結清單、Base64 和 sing-box JSON，暫不支援 Clash YAML。每分鐘最多 4 次請求（含重新導向）。此間隔控制背景擷取，不是用戶端訂閱更新間隔。",
+    "limits": "僅支援公開 HTTPS 443 和 IPv4。通用連結與 Clash 原生格式分開儲存。每分鐘最多 4 次請求（含重新導向）；此間隔控制背景擷取，不是用戶端更新間隔。",
     "reads": "從快取分發訂閱",
     "enableHint": "先預熱所有來源再啟用。此處獨立儲存，不會重新啟動代理核心。",
     "auto": "自動更新",

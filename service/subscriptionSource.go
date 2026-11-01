@@ -29,17 +29,19 @@ type ExternalSubSourceWrite struct {
 	URL         string  `json:"url"`
 	Enabled     bool    `json:"enabled"`
 	ClientIds   *[]uint `json:"clientIds"`
+	CollectorId *string `json:"collectorId"`
 	AdoptLegacy bool    `json:"adoptLegacy"`
 }
 
 type ExternalSubSourceView struct {
-	Id        string                 `json:"id"`
-	Name      string                 `json:"name"`
-	Host      string                 `json:"host"`
-	Enabled   bool                   `json:"enabled"`
-	Revision  uint64                 `json:"revision"`
-	ClientIds []uint                 `json:"clientIds"`
-	Cache     ExternalSubCacheStatus `json:"cache"`
+	Id          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Host        string                 `json:"host"`
+	Enabled     bool                   `json:"enabled"`
+	Revision    uint64                 `json:"revision"`
+	ClientIds   []uint                 `json:"clientIds"`
+	CollectorId string                 `json:"collectorId"`
+	Cache       ExternalSubCacheStatus `json:"cache"`
 }
 
 type ExternalSubCatalogClient struct {
@@ -50,8 +52,10 @@ type ExternalSubCatalogClient struct {
 }
 
 type ExternalSubCatalog struct {
-	Sources []ExternalSubSourceView    `json:"sources"`
-	Clients []ExternalSubCatalogClient `json:"clients"`
+	Collectors     []ExternalCollectorPublic  `json:"collectors"`
+	CollectorError string                     `json:"collectorError,omitempty"`
+	Sources        []ExternalSubSourceView    `json:"sources"`
+	Clients        []ExternalSubCatalogClient `json:"clients"`
 }
 
 type ExternalSubSourceService struct{}
@@ -78,6 +82,7 @@ func (*ExternalSubSourceService) List() (*ExternalSubCatalog, error) {
 	for _, client := range result.Clients {
 		activeClients[client.Id] = client.Enable && (client.Expiry == 0 || client.Expiry > time.Now().Unix())
 	}
+	result.Collectors, result.CollectorError = publicExternalCollectors()
 	grantIds := map[string][]uint{}
 	for _, grant := range grants {
 		grantIds[grant.SourceId] = append(grantIds[grant.SourceId], grant.ClientId)
@@ -102,7 +107,7 @@ func (*ExternalSubSourceService) List() (*ExternalSubCatalog, error) {
 				cache.References++
 			}
 		}
-		result.Sources = append(result.Sources, ExternalSubSourceView{Id: source.Id, Name: source.Name, Host: host, Enabled: source.Enabled, Revision: source.Revision, ClientIds: ids, Cache: cache})
+		result.Sources = append(result.Sources, ExternalSubSourceView{Id: source.Id, Name: source.Name, Host: host, Enabled: source.Enabled, Revision: source.Revision, ClientIds: ids, CollectorId: source.CollectorId, Cache: cache})
 	}
 	return result, nil
 }
@@ -146,12 +151,41 @@ func (*ExternalSubSourceService) Save(input ExternalSubSourceWrite, actor string
 			}
 		}
 		oldURL := source.URL
+		oldCollector := source.CollectorId
 		source.Name = name
 		source.Enabled = input.Enabled
 		source.Revision++
 		source.UpdatedAt = now
 		if raw != "" {
 			source.URL = raw
+		}
+		if input.CollectorId != nil {
+			collector := *input.CollectorId
+			if collector != "" && collector != source.CollectorId {
+				registry, err := externalCollectorRegistry()
+				if err != nil || registry[collector].Secret == "" {
+					return errors.New("collector-not-configured")
+				}
+			}
+			source.CollectorId = collector
+		}
+		var aliases []model.ExternalSubSource
+		if err := tx.Where("url = ? AND id <> ?", source.URL, source.Id).Find(&aliases).Error; err != nil {
+			return err
+		}
+		for _, alias := range aliases {
+			if alias.CollectorId != source.CollectorId {
+				return errors.New("source-url-has-another-collector-route")
+			}
+		}
+		if oldCollector != "" && (oldURL != source.URL || oldCollector != source.CollectorId) {
+			used, err := legacyExternalURLReferenced(tx, oldURL)
+			if err != nil {
+				return err
+			}
+			if used {
+				return errors.New("migrate-legacy-links-before-changing-collector-route")
+			}
 		}
 		if err := tx.Save(&source).Error; err != nil {
 			return err
@@ -174,6 +208,15 @@ func (*ExternalSubSourceService) Save(input ExternalSubSourceWrite, actor string
 				}
 				if count != int64(len(ids)) {
 					return errors.New("source-client-not-found")
+				}
+			}
+			if source.CollectorId != "" {
+				used, err := legacyExternalURLReferenced(tx, source.URL)
+				if err != nil {
+					return err
+				}
+				if used {
+					return errors.New("migrate-legacy-links-before-deleting-collector-source")
 				}
 			}
 			if err := tx.Where("source_id = ?", id).Delete(&model.ExternalSubGrant{}).Error; err != nil {
@@ -201,7 +244,27 @@ func (*ExternalSubSourceService) Save(input ExternalSubSourceWrite, actor string
 				return err
 			}
 		}
-		audit, _ := json.Marshal(map[string]interface{}{"id": id, "name": name, "enabled": source.Enabled, "revision": source.Revision, "urlChanged": oldURL != source.URL, "clientIds": input.ClientIds, "adoptLegacy": input.AdoptLegacy})
+		if source.CollectorId != "" && source.CollectorId != oldCollector {
+			used, err := legacyExternalURLReferenced(tx, source.URL)
+			if err != nil {
+				return err
+			}
+			if used {
+				return errors.New("migrate-legacy-links-before-collector-assignment")
+			}
+		}
+
+		if oldURL != "" && oldCollector != source.CollectorId {
+			// A route handoff must not clear the preceding request's cooldown.
+			if err := tx.Model(&model.ExternalSubSnapshot{}).Where("key = ? AND lease <> ?", externalSubKey(oldURL), "").Updates(map[string]interface{}{"lease": "", "lock_until": 0, "requested": true, "next_attempt": gorm.Expr("MAX(next_attempt, ?)", now+300)}).Error; err != nil {
+				return err
+			}
+		}
+		// Keep cooldowns while fencing any job claimed against this revision.
+		if err := tx.Model(&model.ExternalSubSnapshot{}).Where("lease_source_id = ?", id).Updates(map[string]interface{}{"lease": "", "lock_until": 0, "requested": true}).Error; err != nil {
+			return err
+		}
+		audit, _ := json.Marshal(map[string]interface{}{"collectorId": source.CollectorId, "id": id, "name": name, "enabled": source.Enabled, "revision": source.Revision, "urlChanged": oldURL != source.URL, "clientIds": input.ClientIds, "adoptLegacy": input.AdoptLegacy})
 		return tx.Create(&model.Changes{DateTime: now, Actor: actor, Key: "subscription-sources", Action: "save", Obj: audit}).Error
 	})
 	if err != nil {
@@ -254,7 +317,7 @@ func (*ExternalSubSourceService) AuthorizedSources(clientId uint) ([]model.Exter
 
 // Resolve always reads a snapshot, even while legacy URL caching is off. A
 // catalog reference cannot trigger a live fetch or authorize a different user.
-func (*ExternalSubSourceService) Resolve(id string, clientId uint) (string, error) {
+func (*ExternalSubSourceService) Resolve(id string, clientId uint, native ...bool) (string, error) {
 	if !validExternalSourceId(id) || clientId == 0 {
 		return "", ErrExternalSubCacheUnavailable
 	}
@@ -268,7 +331,7 @@ func (*ExternalSubSourceService) Resolve(id string, clientId uint) (string, erro
 		return "", ErrExternalSubCacheUnavailable
 	}
 	var cache ExternalSubCacheService
-	return cache.snapshot(source.URL)
+	return cache.snapshot(source.URL, native...)
 }
 
 // Adoption touches only exact matching external-subscription entries in the
@@ -325,4 +388,35 @@ func validExternalSourceId(id string) bool {
 		}
 	}
 	return true
+}
+
+func legacyExternalURLReferenced(db *gorm.DB, raw string) (bool, error) {
+	var clients []model.Client
+	if err := db.Select("links").Find(&clients).Error; err != nil {
+		return false, err
+	}
+	for _, client := range clients {
+		var links []struct {
+			Type string `json:"type"`
+			URI  string `json:"uri"`
+		}
+		if len(client.Links) == 0 {
+			continue
+		}
+		if json.Unmarshal(client.Links, &links) != nil {
+			return false, errors.New("client-links-invalid")
+		}
+		for _, link := range links {
+			if link.Type == "sub" && link.URI == raw {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func collectorOwnedURL(raw string) (bool, error) {
+	var count int64
+	err := database.GetDB().Session(&gorm.Session{Logger: ormlog.Discard}).Model(&model.ExternalSubSource{}).Where("url = ? AND collector_id <> ?", raw, "").Count(&count).Error
+	return count > 0, err
 }

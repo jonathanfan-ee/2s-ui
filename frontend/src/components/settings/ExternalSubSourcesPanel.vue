@@ -7,6 +7,14 @@
           <input v-model="form.url" class="input mono" autocomplete="off" spellcheck="false" :placeholder="form.id ? $t('subSources.urlHint') : 'https://provider.example/sub'" />
         </SRow>
         <p class="source-note">{{ $t('subSources.urlHint') }}</p>
+        <SRow :label="$t('subCache.collector')">
+          <Select v-model="form.collectorId">
+            <option value="">{{ $t('subCache.panelEgress') }}</option>
+            <option v-for="collector in collectors" :key="collector.id" :value="collector.id">{{ collector.id }} · {{ collector.expectedIpv4 }}</option>
+            <option v-if="form.collectorId && !collectors.some(c => c.id === form.collectorId)" :value="form.collectorId">{{ form.collectorId }} · {{ $t('subCache.collectorUnavailable') }}</option>
+          </Select>
+        </SRow>
+        <p class="source-note">{{ $t('subCache.collectorHint') }}</p>
         <ToggleRow v-model="form.enabled" :label="$t('subSources.enabled')" />
         <p class="source-note">{{ $t('subSources.policy') }}</p>
         <div class="source-label">{{ $t('subSources.clients') }}</div>
@@ -39,6 +47,7 @@
       <Btn variant="primary" sm :disabled="busy || !loaded" @click="edit()">{{ $t('subSources.create') }}</Btn>
       <Btn sm :disabled="busy || loading" @click="load">{{ $t('subCache.reload') }}</Btn>
     </div>
+    <p v-if="collectorError" class="source-note">{{ $t('subCache.collectorUnavailable') }}</p>
     <p v-if="!loaded">{{ $t('loading') }}</p>
     <p v-else-if="!sources.length" class="source-note">{{ $t('subSources.empty') }}</p>
     <article v-for="source in sources" :key="source.id" class="source-card">
@@ -48,7 +57,9 @@
       </div>
       <div class="source-note mono">{{ source.host }}</div>
       <p class="source-note">{{ $t('subSources.grantCount', { n: source.clientIds.length }) }}</p>
-      <p class="source-note">{{ $t('subCache.lastSuccess') }}: {{ date(source.cache.lastSuccess) }}</p>
+      <p class="source-note">{{ $t('subCache.collector') }}: {{ source.collectorId || $t('subCache.panelEgress') }}</p>
+      <p class="source-note">{{ $t('subCache.universal') }}: {{ source.cache.universalReady ? date(source.cache.lastSuccess) : $t('subCache.cold') }}</p>
+      <p class="source-note">{{ $t('subCache.native') }}: {{ source.cache.clashReady ? date(source.cache.clashLastSuccess) : $t('subCache.cold') }}</p>
       <p v-if="source.cache.paused" class="source-note">{{ $t('subCache.paused') }}</p>
       <p v-else-if="source.cache.refreshing || source.cache.requested" class="source-note">{{ source.cache.refreshing ? $t('subCache.refreshing') : $t('subCache.queued') }}</p>
       <div class="source-actions">
@@ -70,20 +81,23 @@ import SRow from '@/components/ui/SRow.vue'
 import ToggleRow from '@/components/ui/ToggleRow.vue'
 import Btn from '@/components/ui/Btn.vue'
 import Modal from '@/components/ui/Modal.vue'
+import Select from '@/components/ui/Select.vue'
 
 type Source = {
-  id: string; name: string; host: string; enabled: boolean; revision: number; clientIds: number[]
-  cache: { key: string; ready: boolean; lastSuccess: number; requested: boolean; refreshing: boolean; paused: boolean }
+  id: string; name: string; host: string; enabled: boolean; revision: number; clientIds: number[]; collectorId: string
+  cache: { key: string; ready: boolean; lastSuccess: number; universalReady: boolean; clashReady: boolean; clashLastSuccess: number; requested: boolean; refreshing: boolean; paused: boolean }
 }
 type Client = { id: number; name: string; enable: boolean; expiry: number }
 const sources = ref<Source[]>([])
 const clients = ref<Client[]>([])
+const collectors = ref<{ id: string; expectedIpv4: string }[]>([])
+const collectorError = ref('')
 const loaded = ref(false)
 const loading = ref(false)
 const busy = ref(false)
 const editing = ref(false)
 const deleting = ref<Source | null>(null)
-const form = reactive({ id: '', name: '', url: '', enabled: true, revision: 0, clientIds: [] as number[], adoptLegacy: false })
+const form = reactive({ id: '', name: '', url: '', enabled: true, revision: 0, collectorId: '', clientIds: [] as number[], adoptLegacy: false })
 const jsonOptions = { headers: { 'Content-Type': 'application/json' } }
 let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false
@@ -97,6 +111,8 @@ async function load() {
     if (!disposed && response.success) {
       sources.value = response.obj.sources
       clients.value = response.obj.clients
+      collectors.value = response.obj.collectors
+      collectorError.value = response.obj.collectorError || ''
       loaded.value = true
     }
   } finally {
@@ -105,7 +121,7 @@ async function load() {
   }
 }
 function edit(source?: Source) {
-  Object.assign(form, { id: source?.id || '', name: source?.name || '', url: '', enabled: source?.enabled ?? true, revision: source?.revision || 0, clientIds: [...(source?.clientIds || [])], adoptLegacy: false })
+  Object.assign(form, { id: source?.id || '', name: source?.name || '', url: '', enabled: source?.enabled ?? true, revision: source?.revision || 0, collectorId: source?.collectorId || '', clientIds: [...(source?.clientIds || [])], adoptLegacy: false })
   editing.value = true
 }
 function close() { if (!busy.value) editing.value = false }

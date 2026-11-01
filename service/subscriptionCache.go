@@ -18,6 +18,7 @@ import (
 	"github.com/shenaba/2s-ui/util"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	ormlog "gorm.io/gorm/logger"
 )
 
 var ErrExternalSubCacheUnavailable = errors.New("external-subscription-snapshot-unavailable")
@@ -31,24 +32,34 @@ type ExternalSubCacheConfig struct {
 }
 
 type ExternalSubCacheStatus struct {
-	Key         string `json:"key"`
-	Name        string `json:"name"`
-	Host        string `json:"host"`
-	References  int    `json:"references"`
-	Ready       bool   `json:"ready"`
-	LastSuccess int64  `json:"lastSuccess"`
-	LastAttempt int64  `json:"lastAttempt"`
-	NextAttempt int64  `json:"nextAttempt"`
-	LastError   string `json:"lastError"`
-	Paused      bool   `json:"paused"`
-	Requested   bool   `json:"requested"`
-	Refreshing  bool   `json:"refreshing"`
+	Key              string `json:"key"`
+	Name             string `json:"name"`
+	Host             string `json:"host"`
+	References       int    `json:"references"`
+	Ready            bool   `json:"ready"`
+	UniversalReady   bool   `json:"universalReady"`
+	ClashReady       bool   `json:"clashReady"`
+	ClashLastSuccess int64  `json:"clashLastSuccess"`
+	UniversalError   string `json:"universalError"`
+	ClashError       string `json:"clashError"`
+	LastSuccess      int64  `json:"lastSuccess"`
+	LastAttempt      int64  `json:"lastAttempt"`
+	NextAttempt      int64  `json:"nextAttempt"`
+	LastError        string `json:"lastError"`
+	Paused           bool   `json:"paused"`
+	Requested        bool   `json:"requested"`
+	Refreshing       bool   `json:"refreshing"`
 }
 
 type externalSubReference struct {
-	url        string
-	name       string
-	references int
+	url           string
+	name          string
+	references    int
+	collectorId   string
+	sourceId      string
+	revision      uint64
+	routeEnabled  bool
+	routeConflict bool
 }
 
 type ExternalSubCacheService struct {
@@ -93,22 +104,38 @@ func (s *ExternalSubCacheService) Config() (ExternalSubCacheConfig, error) {
 
 // Resolve never contacts an upstream when caching is enabled. A failed cache
 // read is deliberately not a reason to fall back to a live provider request.
-func (s *ExternalSubCacheService) Resolve(raw string) (string, bool, error) {
+func (s *ExternalSubCacheService) Resolve(raw string, native ...bool) (string, bool, error) {
 	config, err := s.Config()
 	if err != nil {
 		return "", true, ErrExternalSubCacheUnavailable
 	}
 	if !config.Enabled {
-		return util.GetExternalLink(raw), false, nil
+		owned := false
+		if database.GetDB() != nil {
+			var routeErr error
+			owned, routeErr = collectorOwnedURL(raw)
+			if routeErr != nil {
+				return "", true, ErrExternalSubCacheUnavailable
+			}
+		}
+		if !owned {
+			return util.GetExternalLink(raw), false, nil
+		}
 	}
-	body, err := s.snapshot(raw)
+	body, err := s.snapshot(raw, native...)
 	return body, true, err
 }
 
-func (s *ExternalSubCacheService) snapshot(raw string) (string, error) {
+func (s *ExternalSubCacheService) snapshot(raw string, native ...bool) (string, error) {
 	var row model.ExternalSubSnapshot
 	err := database.GetDB().Where("key = ?", externalSubKey(raw)).First(&row).Error
-	if err != nil || row.Payload == "" || row.LastSuccess == 0 {
+	if err != nil {
+		return "", ErrExternalSubCacheUnavailable
+	}
+	if len(native) > 0 && native[0] && row.ClashPayload != "" && row.ClashLastSuccess > 0 {
+		return row.ClashPayload, nil
+	}
+	if row.Payload == "" || row.LastSuccess == 0 {
 		return "", ErrExternalSubCacheUnavailable
 	}
 	return row.Payload, nil
@@ -149,16 +176,40 @@ func activeExternalSubs(db *gorm.DB, now int64) (map[string]externalSubReference
 		}
 	}
 	var sources []model.ExternalSubSource
-	if err := db.Where("enabled = ?", true).Order("id").Find(&sources).Error; err != nil {
+	if err := db.Order("id").Find(&sources).Error; err != nil {
 		return nil, err
 	}
 	byId := map[string]string{}
 	for _, source := range sources {
+		if !source.Enabled {
+			continue
+		}
 		key := externalSubKey(source.URL)
 		ref := refs[key]
 		ref.url, ref.name = source.URL, source.Name
 		refs[key] = ref
 		byId[source.Id] = key
+	}
+	declared := map[string]bool{}
+	for _, source := range sources {
+		key := externalSubKey(source.URL)
+		ref, exists := refs[key]
+		if !exists {
+			continue
+		}
+		if declared[key] && ref.collectorId != source.CollectorId {
+			ref.routeConflict = true
+		}
+		if !declared[key] {
+			ref.collectorId = source.CollectorId
+		}
+		declared[key] = true
+		if ref.sourceId == "" || !ref.routeEnabled && source.Enabled {
+			ref.sourceId = source.Id
+			ref.revision = source.Revision
+			ref.routeEnabled = source.Enabled
+		}
+		refs[key] = ref
 	}
 	var grants []model.ExternalSubGrant
 	if err := db.Find(&grants).Error; err != nil {
@@ -183,7 +234,7 @@ func activeExternalSubs(db *gorm.DB, now int64) (map[string]externalSubReference
 // Metadata queries never load payloads into an admin status object.
 func externalSubSnapshotMetadata(db *gorm.DB, now int64) (map[string]ExternalSubCacheStatus, error) {
 	var rows []ExternalSubCacheStatus
-	err := db.Model(&model.ExternalSubSnapshot{}).Select("key, last_success, last_attempt, next_attempt, last_error, paused, requested, (last_success > 0 AND length(payload) > 0) AS ready, (lock_until > ?) AS refreshing", now).Scan(&rows).Error
+	err := db.Model(&model.ExternalSubSnapshot{}).Select("key, last_success, clash_last_success, universal_error, clash_error, last_attempt, next_attempt, last_error, paused, requested, ((last_success > 0 AND length(payload) > 0) OR (clash_last_success > 0 AND length(clash_payload) > 0)) AS ready, (last_success > 0 AND length(payload) > 0) AS universal_ready, (clash_last_success > 0 AND length(clash_payload) > 0) AS clash_ready, (lock_until > ?) AS refreshing", now).Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +264,7 @@ func (s *ExternalSubCacheService) Status() ([]ExternalSubCacheStatus, error) {
 		}
 		result = append(result, ExternalSubCacheStatus{
 			Key: key, Name: ref.name, Host: host, References: ref.references,
-			Ready: row.Ready, LastSuccess: row.LastSuccess, LastAttempt: row.LastAttempt,
+			Ready: row.Ready, UniversalReady: row.UniversalReady, ClashReady: row.ClashReady, ClashLastSuccess: row.ClashLastSuccess, UniversalError: row.UniversalError, ClashError: row.ClashError, LastSuccess: row.LastSuccess, LastAttempt: row.LastAttempt,
 			NextAttempt: row.NextAttempt, LastError: row.LastError, Paused: row.Paused,
 			Requested: row.Requested, Refreshing: row.Refreshing,
 		})
@@ -272,6 +323,18 @@ func (s *ExternalSubCacheService) Queue(keys []string, resume bool) error {
 		ref, ok := refs[key]
 		if !ok {
 			return errors.New("source-not-assigned-to-an-active-client")
+		}
+		if ref.routeConflict {
+			return errors.New("source-route-conflict")
+		}
+		if ref.collectorId != "" {
+			registry, err := externalCollectorRegistry()
+			if err != nil || registry[ref.collectorId].Secret == "" {
+				return errors.New("collector-not-configured")
+			}
+			if !ref.routeEnabled {
+				return errors.New("collector-source-disabled")
+			}
 		}
 		if err := validateCachedSubURL(ref.url); err != nil {
 			return err
@@ -340,6 +403,9 @@ func (s *ExternalSubCacheService) RefreshOne(ctx context.Context) error {
 	sort.Strings(keys)
 	for _, key := range keys {
 		ref := refs[key]
+		if ref.collectorId != "" || ref.routeConflict {
+			continue
+		}
 		row := model.ExternalSubSnapshot{Key: key}
 		automatic := config.AutoRefresh && ref.references > 0
 		if automatic {
@@ -355,7 +421,7 @@ func (s *ExternalSubCacheService) RefreshOne(ctx context.Context) error {
 			// expired lease makes it eligible again after a panel restart.
 			query = query.Where("requested = ? OR (lease <> ? AND lock_until <= ?)", true, "", now)
 		}
-		claim := query.Updates(map[string]interface{}{"lease": lease, "lock_until": now + 30, "last_attempt": now, "requested": false})
+		claim := query.Updates(map[string]interface{}{"lease": lease, "lock_until": now + 30, "last_attempt": now, "requested": false, "lease_source_id": "", "lease_collector_id": ""})
 		if claim.Error != nil {
 			return claim.Error
 		}
@@ -370,49 +436,20 @@ func (s *ExternalSubCacheService) RefreshOne(ctx context.Context) error {
 			fetch = fetchCachedExternalSub
 		}
 		result, fetchErr := fetch(ctx, ref.url, func() error { return reserveExternalSubAttempt(database.GetDB(), s.clock()) })
-		if fetchErr == nil {
-			fetchErr = validateCachedSubBody(result.body)
-		}
 		finished := s.clock()
-		next := now + int64(config.RefreshMinutes)*60
-		failures := 0
-		budgetWait := errors.Is(fetchErr, errSubRequestBudget)
-		if budgetWait {
-			failures = row.Failures
-			next = finished + 60
-		} else if fetchErr != nil {
-			failures = min(max(row.Failures, 0)+1, 10)
-			// Repeated failures back off, rather than hammer a suspended source.
-			delay := min(int64(config.RefreshMinutes)*60*(1<<(failures-1)), 6*60*60)
-			next = finished + delay
-		}
-		if result.retryAt > next {
-			next = result.retryAt
-		}
-		return database.GetDB().Transaction(func(tx *gorm.DB) error {
+		values := snapshotRefreshValues(row, result, fetchErr, now, finished, config.RefreshMinutes)
+		return database.GetDB().Session(&gorm.Session{Logger: ormlog.Discard}).Transaction(func(tx *gorm.DB) error {
 			// The URL may have been removed or its last client disabled during
 			// the fetch. Never publish a now-unassigned source's response.
 			current, err := activeExternalSubs(tx, finished)
 			if err != nil {
 				return err
 			}
-			values := map[string]interface{}{"lease": "", "lock_until": 0, "next_attempt": next, "failures": failures}
-			if budgetWait {
-				// Local budget contention is not an upstream failure. Keep a
-				// manual prewarm queued until a request can actually be made.
-				values["requested"] = true
+			if currentRef, stillAssigned := current[key]; !stillAssigned || currentRef.collectorId != "" || currentRef.routeConflict {
+				// Keep every last-good format while discarding obsolete results.
+				values = map[string]interface{}{"lease": "", "lock_until": 0, "requested": false, "last_error": "source-unassigned"}
 			}
-			if _, stillAssigned := current[key]; !stillAssigned {
-				values["last_error"] = "source-unassigned"
-				values["requested"] = false
-			} else if fetchErr != nil {
-				values["last_error"] = safeExternalSubError(fetchErr)
-				values["paused"] = result.status == 401 || result.status == 403
-			} else {
-				values["payload"] = util.DecodeExternalSubBody(result.body)
-				values["last_success"] = finished
-				values["last_error"] = ""
-			}
+
 			return tx.Model(&model.ExternalSubSnapshot{}).Where("key = ? AND lease = ? AND lock_until >= ?", key, lease, finished).Updates(values).Error
 		})
 	}
@@ -428,6 +465,7 @@ func safeExternalSubError(err error) string {
 	allowed := map[string]bool{
 		"source-requires-public-https": true, "source-address-not-public-ipv4": true,
 		"source-request-invalid": true, "source-request-failed": true,
+		"source-native-clash-invalid": true, "provider-blocked": true,
 		"source-content-encoding-unsupported": true, "source-body-read-failed": true,
 		"source-body-invalid-or-too-large": true, "source-content-invalid": true,
 	}
@@ -440,4 +478,71 @@ func safeExternalSubError(err error) string {
 		}
 	}
 	return "source-refresh-failed"
+}
+
+// Both local and remote workers publish through the same independent-format
+// validation path. A sibling format's failure cannot erase a valid snapshot.
+func snapshotRefreshValues(row model.ExternalSubSnapshot, result externalSubFetchResult, universalErr error, started, finished int64, minutes int) map[string]interface{} {
+	if universalErr == nil {
+		universalErr = validateExternalSubFormat(result.body, false)
+	}
+	formats := []*externalSubFormatResult{{body: result.body, status: result.status, retryAt: result.retryAt, err: universalErr, userInfo: result.userInfo}}
+	if result.clash != nil {
+		native := *result.clash
+		if native.err == nil {
+			native.err = validateExternalSubFormat(native.body, true)
+		}
+		formats = append(formats, &native)
+	}
+	values := map[string]interface{}{"lease": "", "lock_until": 0, "last_error": "", "failures": 0}
+	successes := 0
+	paused := false
+	onlyBudget := true
+	retryAt := int64(0)
+	for i, format := range formats {
+		payload, success, errorKey, info := "payload", "last_success", "universal_error", "universal_info"
+		if i == 1 {
+			payload, success, errorKey, info = "clash_payload", "clash_last_success", "clash_error", "clash_info"
+		}
+		values[errorKey] = ""
+		if format.err == nil {
+			successes++
+			body := format.body
+			if i == 0 {
+				body = util.DecodeExternalSubBody(body)
+			}
+			values[payload] = body
+			values[success] = finished
+			encoded, _ := json.Marshal(format.userInfo)
+			values[info] = encoded
+		} else {
+			code := safeExternalSubError(format.err)
+			values[errorKey] = code
+			if values["last_error"] == "" {
+				values["last_error"] = code
+			}
+			if !errors.Is(format.err, errSubRequestBudget) {
+				onlyBudget = false
+			}
+		}
+		if format.status == 401 || format.status == 403 || format.err != nil && format.err.Error() == "provider-blocked" {
+			paused = true
+		}
+		retryAt = max(retryAt, format.retryAt)
+	}
+	next := started + int64(minutes)*60
+	if successes == 0 {
+		if onlyBudget {
+			values["failures"] = row.Failures
+			values["requested"] = true
+			next = finished + 60
+		} else {
+			failures := min(max(row.Failures, 0)+1, 10)
+			values["failures"] = failures
+			next = finished + min(int64(minutes)*60*(1<<(failures-1)), 6*60*60)
+		}
+	}
+	values["paused"] = paused
+	values["next_attempt"] = max(next, retryAt)
+	return values
 }

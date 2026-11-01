@@ -25,7 +25,8 @@
           </div>
           <span>{{ source.ready ? $t('subCache.ready') : $t('subCache.cold') }}</span>
         </div>
-        <div class="cache-note">{{ $t('subCache.lastSuccess') }}: {{ date(source.lastSuccess) }}</div>
+        <div class="cache-note">{{ $t('subCache.universal') }}: {{ source.universalReady ? date(source.lastSuccess) : $t('subCache.cold') }}</div>
+        <div class="cache-note">{{ $t('subCache.native') }}: {{ source.clashReady ? date(source.clashLastSuccess) : $t('subCache.cold') }}</div>
         <div v-if="source.nextAttempt" class="cache-note">{{ $t('subCache.nextAttempt') }}: {{ date(source.nextAttempt) }}</div>
         <div v-if="source.refreshing">{{ $t('subCache.refreshing') }}</div>
         <div v-else-if="source.paused">{{ $t('subCache.paused') }}</div>
@@ -52,7 +53,7 @@ import Btn from '@/components/ui/Btn.vue'
 
 type Source = {
   key: string; name: string; host: string; references: number; ready: boolean
-  lastSuccess: number; nextAttempt: number; lastError: string
+  lastSuccess: number; universalReady: boolean; clashReady: boolean; clashLastSuccess: number; nextAttempt: number; lastError: string
   paused: boolean; requested: boolean; refreshing: boolean
 }
 const config = reactive({ enabled: false, autoRefresh: false, refreshMinutes: 5 })

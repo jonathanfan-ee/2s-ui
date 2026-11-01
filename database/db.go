@@ -155,6 +155,7 @@ func InitDB(dbPath string) error {
 		&model.ExternalSubAttempt{},
 		&model.ExternalSubSource{},
 		&model.ExternalSubGrant{},
+		&model.ExternalCollectorNonce{},
 		&model.LoginAttempt{},
 	)
 	if err != nil {

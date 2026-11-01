@@ -154,6 +154,7 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	} else {
 		sameOrigin.Port = v
 	}
+	api.NewCollectorHandler(engine.Group(base_url + "api/collector"))
 	group_api := engine.Group(base_url + "api")
 	group_api.Use(middleware.SameOrigin(sameOrigin))
 	api.NewAPIHandler(group_api, apiv2)

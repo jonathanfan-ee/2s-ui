@@ -535,17 +535,14 @@ func (s *NodeService) Save(tx *gorm.DB, act string, data json.RawMessage) error 
 				}
 				node.Token = oldToken
 			}
-			// last_seen is heartbeat-owned; don't let a stale form value clobber it.
 			var oldNode struct {
-				Name     string
-				LastSeen int64
+				Name string
 			}
-			err = tx.Model(model.Node{}).Select("name", "last_seen").Where("id = ?", node.Id).Find(&oldNode).Error
+			err = tx.Model(model.Node{}).Select("name").Where("id = ?", node.Id).Find(&oldNode).Error
 			if err != nil {
 				return err
 			}
 			oldName = oldNode.Name
-			node.LastSeen = oldNode.LastSeen
 		}
 		if node.Token == "" {
 			return common.NewError("node API token is required")
@@ -559,7 +556,15 @@ func (s *NodeService) Save(tx *gorm.DB, act string, data json.RawMessage) error 
 		if (act == "new" || oldName != node.Name) && strings.ContainsAny(node.Name, "[]") {
 			return common.NewError("node name cannot contain [ or ]")
 		}
-		err = tx.Save(&node).Error
+		if act == "edit" {
+			// Settings do not own heartbeat, reconcile or traffic state. In
+			// particular, clearing Dirty loses offline-period user changes, and
+			// clearing Baselines counts all historical node traffic again. Omit
+			// these columns from the write rather than restoring a stale snapshot.
+			err = tx.Omit("LastSeen", "Dirty", "LastSync", "Baselines").Save(&node).Error
+		} else {
+			err = tx.Save(&node).Error
+		}
 		if err != nil {
 			return err
 		}

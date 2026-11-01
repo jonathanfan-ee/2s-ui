@@ -64,6 +64,7 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int, statsBucketSeconds i
 	addJob("@every 10s", NewIpLimitJob(), "ip limit job")
 	addJob("@every 10s", NewClusterIPLimitJob(), "cluster IP limit job")
 	addJob("@every 1m", NewDepleteJob(), "deplete job")
+	addJob("@every 15s", &ExternalSubRefreshJob{}, "external subscription refresh")
 	// Periodic global traffic reset. Polled rather than scheduled on the spec
 	// itself, so a saved schedule applies without a panel restart; a no-op
 	// while the spec is off.

@@ -1,6 +1,33 @@
 import ui from './ui/zhtw'
 
 export default {
+  subCache: {
+    "title": "外部訂閱快取",
+    "desc": "背景去重擷取外部訂閱，用戶端讀取持久快照。更新失敗時保留上次有效內容。",
+    "limits": "僅支援公開 HTTPS 443 和 IPv4。支援連結清單、Base64 和 sing-box JSON，暫不支援 Clash YAML。每分鐘最多 4 次請求（含重新導向）。此間隔控制背景擷取，不是用戶端訂閱更新間隔。",
+    "reads": "從快取分發訂閱",
+    "enableHint": "先預熱所有來源再啟用。此處獨立儲存，不會重新啟動代理核心。",
+    "auto": "自動更新",
+    "interval": "背景擷取間隔",
+    "coldHint": "部分來源尚無有效快照，請先排隊更新，等待全部就緒後再啟用快取分發。",
+    "apply": "套用快取設定",
+    "warm": "全部排隊更新",
+    "reload": "重新載入狀態",
+    "empty": "暫無分配給有效用戶的外部訂閱。",
+    "references": "{n} 位用戶引用",
+    "ready": "已就緒",
+    "cold": "暫無快照",
+    "lastSuccess": "上次成功",
+    "nextAttempt": "下次可嘗試時間",
+    "refreshing": "正在更新",
+    "paused": "已暫停，需要手動恢復",
+    "queued": "已排隊；到期後由下一輪背景工作處理",
+    "resume": "恢復並排隊",
+    "refresh": "排隊更新",
+    "invalid": "來源未傳回可用節點，保留原快照。",
+    "budget": "已達全域請求頻率限制，等待後再嘗試。",
+    "fetchFailed": "更新失敗，保留原快照；請檢查來源存取權限和連線。"
+  },
   ui,
   success: "成功",
   failed: "失敗",

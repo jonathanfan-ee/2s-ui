@@ -123,7 +123,10 @@ func (s *ClashService) GetClash(subId string) (*string, []string, error) {
 		return nil, nil, err
 	}
 
-	extOutbounds, extTags := s.LinkService.GetExternalOutboundsForClash(&client.Links)
+	extOutbounds, extTags, err := s.LinkService.GetExternalOutboundsChecked(&client.Links, true)
+	if err != nil {
+		return nil, nil, err
+	}
 	*outbounds = append(*outbounds, extOutbounds...)
 	*outTags = append(*outTags, extTags...)
 	uniqueOutboundTags(*outbounds, *outTags)

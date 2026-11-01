@@ -129,6 +129,8 @@
       </SRow>
     </SettingsGroup>
 
+    <ExternalSubCachePanel v-else-if="tab === 'externalSubs'" />
+
     <!-- ===================== JSON sub ===================== -->
     <SettingsGroup v-else-if="tab === 'jsonSub'">
       <div style="font-size: 12.5px; color: var(--text-3); padding: 12px 0 14px;">{{ $t('ui.jsonExtDesc') }}</div>
@@ -416,6 +418,7 @@ import SectionLabel from '@/components/ui/SectionLabel.vue'
 import ToggleRow from '@/components/ui/ToggleRow.vue'
 import DomainInput from '@/components/ui/DomainInput.vue'
 import CertsPanel from '@/components/settings/CertsPanel.vue'
+import ExternalSubCachePanel from '@/components/settings/ExternalSubCachePanel.vue'
 import { loadCerts, certsLoaded, findCert, daysLeft } from '@/plugins/certs'
 
 const tab = ref('interface')
@@ -429,6 +432,7 @@ const tabItems = computed((): [string, string][] => [
   ['certs', i18n.global.t('setting.certs')],
   ['interface', i18n.global.t('setting.interface')],
   ['sub', i18n.global.t('setting.sub')],
+  ['externalSubs', i18n.global.t('subCache.title')],
   ['jsonSub', i18n.global.t('setting.jsonSub')],
   ['clashSub', i18n.global.t('setting.clashSub')],
   ['notify', i18n.global.t('setting.notify')],

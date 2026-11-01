@@ -51,6 +51,10 @@ func (a *APIv2Handler) postHandler(c *gin.Context) {
 	action := c.Param("postAction")
 
 	switch action {
+	case "configureExternalSubCache":
+		a.ApiService.ConfigureExternalSubCache(c, username)
+	case "refreshExternalSubs":
+		a.ApiService.RefreshExternalSubs(c)
 	case "save":
 		// sync=true asks for the immediate node fanout the web UI always gets.
 		// It controls latency only — without it a change still reaches nodes
@@ -104,6 +108,8 @@ func (a *APIv2Handler) getHandler(c *gin.Context) {
 	action := c.Param("getAction")
 
 	switch action {
+	case "externalSubCache":
+		a.ApiService.GetExternalSubCache(c)
 	case "load":
 		a.ApiService.LoadData(c)
 	case "inbounds", "outbounds", "endpoints", "services", "tls", "clients", "config":

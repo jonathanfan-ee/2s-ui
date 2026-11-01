@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/shenaba/2s-ui/database"
 	"github.com/shenaba/2s-ui/database/model"
@@ -61,7 +62,10 @@ func (j *JsonService) GetJson(subId string, format string) (*string, []string, e
 		return nil, nil, err
 	}
 
-	extOutbounds, extTags := j.LinkService.GetExternalOutbounds(&client.Links)
+	extOutbounds, extTags, err := j.LinkService.GetExternalOutboundsChecked(&client.Links, false)
+	if err != nil {
+		return nil, nil, err
+	}
 	*outbounds = append(*outbounds, extOutbounds...)
 	*outTags = append(*outTags, extTags...)
 	uniqueOutboundTags(*outbounds, *outTags, defaultOutboundTags...)
@@ -101,7 +105,7 @@ func (j *JsonService) GetJson(subId string, format string) (*string, []string, e
 func (j *JsonService) getData(subId string) (*model.Client, []*model.Inbound, error) {
 	db := database.GetDB()
 	client := &model.Client{}
-	err := db.Model(model.Client{}).Where("enable = true and name = ?", subId).First(client).Error
+	err := db.Model(model.Client{}).Where("enable = true and name = ? AND (expiry = 0 OR expiry > ?)", subId, time.Now().Unix()).First(client).Error
 	if err != nil {
 		return nil, nil, err
 	}
@@ -547,8 +551,8 @@ func (j *JsonService) addDefaultOutbounds(outbounds *[]map[string]interface{}, o
 			"type":      "selector",
 		},
 		{
-			"tag":       "auto",
-			"type":      "urltest",
+			"tag":  "auto",
+			"type": "urltest",
 			// Deref: a *[]string would marshal to null when the slice is nil.
 			"outbounds": *outTags,
 			"url":       "http://www.gstatic.com/generate_204",

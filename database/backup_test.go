@@ -208,6 +208,8 @@ func seedEveryTable(t *testing.T) {
 		&model.Changes{DateTime: now, Actor: "test", Key: "clients", Action: "new", Obj: json.RawMessage(`"client-1"`)},
 		&model.Node{Name: "node-1", BaseUrl: "https://node.example", WebPath: "/app/", Token: "n0de", Baselines: obj},
 		&model.Cert{Domain: "example.com", CertFile: "/etc/cert.pem", KeyFile: "/etc/key.pem"},
+		&model.ExternalSubSnapshot{Key: "source-test", Payload: "trojan://test@example.com:443#node", LastSuccess: now, NextAttempt: now + 300, Failures: 2},
+		&model.ExternalSubAttempt{At: now},
 		&model.LoginAttempt{Scope: "ip", Key: "1.2.3.4", Failures: 1, WindowStart: now},
 	}
 	for _, row := range rows {

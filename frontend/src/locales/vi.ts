@@ -1,6 +1,33 @@
 import ui from './ui/vi'
 
 export default {
+  subCache: {
+    "title": "Đăng ký bên ngoài",
+    "desc": "Làm mới nguồn dùng chung ở nền và phân phối ảnh chụp đã lưu. Khi lỗi, giữ lại nội dung hợp lệ gần nhất.",
+    "limits": "Chỉ HTTPS công khai, cổng 443, IPv4. Hỗ trợ danh sách URI, Base64 và sing-box JSON; chưa hỗ trợ Clash YAML. Tối đa 4 yêu cầu/phút, gồm chuyển hướng. Khoảng này dành cho bộ thu thập, không phải máy khách.",
+    "reads": "Phân phối từ bộ nhớ đệm",
+    "enableHint": "Nạp trước mọi nguồn rồi bật. Lưu riêng, không khởi động lại lõi proxy.",
+    "auto": "Tự động làm mới",
+    "interval": "Khoảng thu thập",
+    "coldHint": "Một số nguồn chưa có ảnh chụp hợp lệ. Xếp hàng làm mới và chờ tất cả sẵn sàng.",
+    "apply": "Áp dụng thiết lập đệm",
+    "warm": "Xếp hàng tất cả",
+    "reload": "Tải lại trạng thái",
+    "empty": "Không có đăng ký bên ngoài cho người dùng đang hoạt động.",
+    "references": "{n} người dùng",
+    "ready": "Sẵn sàng",
+    "cold": "Chưa có ảnh chụp",
+    "lastSuccess": "Thành công gần nhất",
+    "nextAttempt": "Lần thử hợp lệ tiếp theo",
+    "refreshing": "Đang làm mới",
+    "paused": "Đã tạm dừng; cần tiếp tục thủ công",
+    "queued": "Đã xếp hàng; xử lý ở lượt nền hợp lệ tiếp theo",
+    "resume": "Tiếp tục và xếp hàng",
+    "refresh": "Xếp hàng làm mới",
+    "invalid": "Nguồn không trả về nút hợp lệ. Giữ ảnh chụp trước.",
+    "budget": "Đã hết hạn mức yêu cầu chung. Nguồn sẽ chờ.",
+    "fetchFailed": "Làm mới thất bại. Giữ ảnh chụp trước; kiểm tra quyền truy cập và kết nối."
+  },
   ui,
   success: "Thành công",
   failed: "Thất bại",

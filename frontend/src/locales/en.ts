@@ -1,6 +1,33 @@
 import ui from './ui/en'
 
 export default {
+  subCache: {
+    "title": "External subscriptions",
+    "desc": "Refresh shared sources in the background and serve persisted snapshots. Failed refreshes retain the last valid content.",
+    "limits": "Public HTTPS on port 443 over IPv4 only. URI lists, Base64 and sing-box JSON are supported; Clash YAML is not yet supported. At most 4 requests per minute, including redirects. This interval controls collection, not client updates.",
+    "reads": "Serve cached snapshots",
+    "enableHint": "Prewarm every source before enabling. These controls save separately and do not restart the proxy core.",
+    "auto": "Automatic refresh",
+    "interval": "Collection interval",
+    "coldHint": "Some sources have no valid snapshot. Queue a refresh and wait for them to become ready before enabling cache reads.",
+    "apply": "Apply cache settings",
+    "warm": "Queue refresh for all",
+    "reload": "Reload status",
+    "empty": "No external subscriptions are assigned to active clients.",
+    "references": "{n} client(s)",
+    "ready": "Ready",
+    "cold": "No snapshot",
+    "lastSuccess": "Last success",
+    "nextAttempt": "Next eligible attempt",
+    "refreshing": "Refreshing",
+    "paused": "Paused; explicit resume required",
+    "queued": "Queued; eligible sources run on the next scheduler poll",
+    "resume": "Resume and queue",
+    "refresh": "Queue refresh",
+    "invalid": "The source returned no usable nodes. The previous snapshot is retained.",
+    "budget": "The shared request budget is spent. The source will wait.",
+    "fetchFailed": "Refresh failed. The previous snapshot is retained; check source access and connectivity."
+  },
   ui,
   success: "success",
   failed: "failed",

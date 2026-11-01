@@ -1,6 +1,33 @@
 import ui from './ui/zhcn'
 
 export default {
+  subCache: {
+    "title": "外部订阅缓存",
+    "desc": "后台去重采集外部订阅，客户端读取持久快照。刷新失败时保留上次有效内容。",
+    "limits": "仅支持公开 HTTPS 443 和 IPv4。支持链接列表、Base64 和 sing-box JSON，暂不支持 Clash YAML。每分钟最多 4 次请求（含重定向）。此间隔控制后台采集，不是客户端订阅更新间隔。",
+    "reads": "从缓存分发订阅",
+    "enableHint": "先预热所有来源再启用。这里独立保存，不会重启代理内核。",
+    "auto": "自动刷新",
+    "interval": "后台采集间隔",
+    "coldHint": "部分来源尚无有效快照，请先排队刷新，等待全部就绪后再启用缓存分发。",
+    "apply": "应用缓存设置",
+    "warm": "全部排队刷新",
+    "reload": "重载状态",
+    "empty": "暂无分配给有效用户的外部订阅。",
+    "references": "{n} 个用户引用",
+    "ready": "已就绪",
+    "cold": "暂无快照",
+    "lastSuccess": "上次成功",
+    "nextAttempt": "下次可尝试时间",
+    "refreshing": "正在刷新",
+    "paused": "已暂停，需要手动恢复",
+    "queued": "已排队；到期后由下一轮后台任务处理",
+    "resume": "恢复并排队",
+    "refresh": "排队刷新",
+    "invalid": "来源未返回可用节点，保留原快照。",
+    "budget": "已达到全局请求频率限制，等待后再尝试。",
+    "fetchFailed": "刷新失败，保留原快照；请检查来源访问权限和连接。"
+  },
   ui,
   success: "成功",
   failed: "失败",

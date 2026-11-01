@@ -72,10 +72,16 @@ func GetExternalLink(url string) string {
 	// which no link could be read (#1281). Trimmed first, since the decoders
 	// skip line breaks but not other whitespace; a body that is not base64 is
 	// returned as it came.
-	if decoded, err := decodeAnyBase64(strings.TrimSpace(string(body))); err == nil {
+	return DecodeExternalSubBody(string(body))
+}
+
+// DecodeExternalSubBody accepts the same plain and base64 body forms as the
+// live fetch path. Snapshot readers use it without contacting the provider.
+func DecodeExternalSubBody(body string) string {
+	if decoded, err := decodeAnyBase64(strings.TrimSpace(body)); err == nil {
 		return string(decoded)
 	}
-	return string(body)
+	return body
 }
 
 func GetExternalSub(url string) ([]map[string]interface{}, error) {
@@ -90,16 +96,29 @@ func GetExternalSubForClash(url string) ([]map[string]interface{}, error) {
 }
 
 func getExternalSub(url string, parseLink func(string, int) (*map[string]interface{}, string, error)) ([]map[string]interface{}, error) {
-	var err error
-	var result []map[string]interface{}
-
 	if len(url) == 0 {
 		return nil, common.NewError("no url")
 	}
+	return parseExternalSubData(GetExternalLink(url), parseLink)
+}
+
+// ParseExternalSubData parses a saved response using the requested export's
+// link converter. In particular Clash keeps XHTTP options that sing-box cannot
+// represent. This function performs no network requests.
+func ParseExternalSubData(data string, forClash bool) ([]map[string]interface{}, error) {
+	if forClash {
+		return parseExternalSubData(data, GetOutboundForClash)
+	}
+	return parseExternalSubData(data, GetOutbound)
+}
+
+func parseExternalSubData(body string, parseLink func(string, int) (*map[string]interface{}, string, error)) ([]map[string]interface{}, error) {
+	var err error
+	var result []map[string]interface{}
 
 	// Trimmed: a JSON body ending in a newline failed the brace check below and
 	// was read as a list of links.
-	data := strings.TrimSpace(GetExternalLink(url))
+	data := strings.TrimSpace(DecodeExternalSubBody(body))
 	if len(data) == 0 {
 		return nil, common.NewError("no result")
 	}

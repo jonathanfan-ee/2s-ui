@@ -41,7 +41,11 @@ func clientLinks(name string) ([]sub.Link, error) {
 	// they are wanted in: a subscription is what a client app should be given,
 	// and it keeps working when the inbounds change, while a single link is the
 	// fallback for an app that cannot take one.
-	return append(subscriptionLinks(c.Name), linkService.GetLinkList(&c.Links, "all", "")...), nil
+	links, err := linkService.GetLinkListChecked(&c.Links, "all", "")
+	if err != nil {
+		return nil, err
+	}
+	return append(subscriptionLinks(c.Name), links...), nil
 }
 
 // subscriptionLinks are the client's whole subscription, one entry per format

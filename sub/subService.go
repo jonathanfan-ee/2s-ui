@@ -31,7 +31,10 @@ func (s *SubService) GetSubs(subId string) (*string, []string, error) {
 		clientInfo = s.getClientInfo(client)
 	}
 
-	linksArray := s.LinkService.GetLinks(&client.Links, "all", clientInfo)
+	linksArray, err := s.LinkService.GetLinksChecked(&client.Links, "all", clientInfo)
+	if err != nil {
+		return nil, nil, err
+	}
 	result := strings.Join(linksArray, "\n")
 
 	headers := s.getClientHeaders(client)
@@ -122,7 +125,13 @@ func (s *SubService) getClientInfoJSON(subId string) (*ClientInfo, error) {
 		}
 	}
 
-	info.Links = append(info.Links, s.LinkService.GetLinks(&client.Links, "all", "")...)
+	if !info.Expired {
+		links, err := s.LinkService.GetLinksChecked(&client.Links, "all", "")
+		if err != nil {
+			return nil, err
+		}
+		info.Links = append(info.Links, links...)
+	}
 
 	return info, nil
 }
@@ -145,7 +154,7 @@ func (j *SubService) getAnyClientBySubId(subId string) (*model.Client, error) {
 func (j *SubService) getClientBySubId(subId string) (*model.Client, error) {
 	db := database.GetDB()
 	client := &model.Client{}
-	err := db.Model(model.Client{}).Where("enable = true and name = ?", subId).First(client).Error
+	err := db.Model(model.Client{}).Where("enable = true and name = ? AND (expiry = 0 OR expiry > ?)", subId, time.Now().Unix()).First(client).Error
 	if err != nil {
 		return nil, err
 	}

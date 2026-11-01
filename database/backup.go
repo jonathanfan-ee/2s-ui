@@ -86,6 +86,8 @@ func GetDb(exclude string) ([]byte, error) {
 		&model.Changes{},
 		&model.Node{},
 		&model.Cert{},
+		&model.ExternalSubSnapshot{},
+		&model.ExternalSubAttempt{},
 	)
 	if err != nil {
 		return nil, err
@@ -104,6 +106,24 @@ func GetDb(exclude string) ([]byte, error) {
 	var nodes []model.Node
 	var stats []model.Stats
 	var changes []model.Changes
+	var snapshots []model.ExternalSubSnapshot
+	var attempts []model.ExternalSubAttempt
+
+	// Validated snapshots and the request budget survive a backup/restore.
+	if err := db.Find(&snapshots).Error; err != nil {
+		return nil, err
+	} else if len(snapshots) > 0 {
+		if err := backupDb.CreateInBatches(snapshots, backupBatchSize).Error; err != nil {
+			return nil, err
+		}
+	}
+	if err := db.Find(&attempts).Error; err != nil {
+		return nil, err
+	} else if len(attempts) > 0 {
+		if err := backupDb.CreateInBatches(attempts, backupBatchSize).Error; err != nil {
+			return nil, err
+		}
+	}
 
 	// Perform scans and handle errors
 	if err := db.Model(&model.Setting{}).Scan(&settings).Error; err != nil {

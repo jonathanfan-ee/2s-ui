@@ -2,6 +2,7 @@ package sub
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -90,15 +91,13 @@ func (s *SubHandler) subs(c *gin.Context) {
 			result, headers, err = s.ClashService.GetClash(subId)
 		}
 		if err != nil || result == nil {
-			logger.Error(err)
-			c.String(400, "Error!")
+			s.subscriptionError(c, err)
 			return
 		}
 	} else {
 		result, headers, err = s.SubService.GetSubs(subId)
 		if err != nil || result == nil {
-			logger.Error(err)
-			c.String(400, "Error!")
+			s.subscriptionError(c, err)
 			return
 		}
 	}
@@ -108,12 +107,23 @@ func (s *SubHandler) subs(c *gin.Context) {
 	c.String(200, *result)
 }
 
+// A non-success status lets proxy clients retain their previous configuration.
+func (s *SubHandler) subscriptionError(c *gin.Context, err error) {
+	if errors.Is(err, service.ErrExternalSubCacheUnavailable) {
+		c.Header("Retry-After", "300")
+		c.Header("Cache-Control", "no-store")
+		c.String(http.StatusServiceUnavailable, "Subscription snapshot unavailable; try again later.")
+		return
+	}
+	logger.Error(err)
+	c.String(http.StatusBadRequest, "Error!")
+}
+
 // serveClientInfo answers with the live figures the dashboard renders.
 func (s *SubHandler) serveClientInfo(c *gin.Context, subId string) {
 	info, err := s.getClientInfoJSON(subId)
 	if err != nil {
-		logger.Error(err)
-		c.String(400, "Error!")
+		s.subscriptionError(c, err)
 		return
 	}
 
@@ -136,8 +146,7 @@ func (s *SubHandler) serveDashboard(c *gin.Context, subId string) {
 	// and getAnyClientBySubId is what the info endpoint answers with too.
 	client, err := s.SubService.getAnyClientBySubId(subId)
 	if err != nil {
-		logger.Error(err)
-		c.String(400, "Error!")
+		s.subscriptionError(c, err)
 		return
 	}
 
@@ -163,8 +172,7 @@ func (s *SubHandler) subHeaders(c *gin.Context) {
 	subId := c.Param("subid")
 	client, err := s.SubService.getClientBySubId(subId)
 	if err != nil {
-		logger.Error(err)
-		c.String(400, "Error!")
+		s.subscriptionError(c, err)
 		return
 	}
 

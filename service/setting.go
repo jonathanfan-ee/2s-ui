@@ -62,6 +62,11 @@ var defaultConfig = `{
 // version, globalResetLast and globalResetArmed are bookkeeping the panel
 // advances itself.
 var protectedSettings = map[string]bool{
+	// Dedicated cache actions validate prewarming and never restart the core.
+	"subCacheEnabled":        true,
+	"subCacheAutoRefresh":    true,
+	"subCacheRefreshMinutes": true,
+
 	"secret":           true,
 	"config":           true,
 	"version":          true,
@@ -121,6 +126,10 @@ var defaultValueMap = map[string]string{
 	"globalResetArmed":   "",
 	"config":             defaultConfig,
 	"version":            config.GetVersion(),
+
+	"subCacheEnabled":        "false",
+	"subCacheAutoRefresh":    "false",
+	"subCacheRefreshMinutes": "5",
 
 	// Notifications. notifyEvents is a comma-separated list of notify.Kind
 	// values -- the kinds themselves are documented in service/notify/event.go,

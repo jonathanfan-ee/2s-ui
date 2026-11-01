@@ -24,8 +24,8 @@ func setupSubDB(t *testing.T) {
 		t.Fatalf("InitDB: %v", err)
 	}
 	t.Cleanup(func() {
-		if sqlDB, err := database.GetDB().DB(); err == nil {
-			_ = sqlDB.Close()
+		if err := database.CloseDBForTest(); err != nil {
+			t.Errorf("close db: %v", err)
 		}
 	})
 }
@@ -718,7 +718,6 @@ func TestClashUdpRespectsTcpOnlyListener(t *testing.T) {
 		t.Fatalf("no shadowsocks outbound emitted:\n%s", *raw)
 	}
 }
-
 
 // runAddHTTPClients drives addHTTPClients over a settings template the way
 // addOthers does, and hands back both halves it can write to.

@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      SOURCE_COMMIT: f20ee45ef2b75fce78cc2eebce01cd156d60d33b
+      SOURCE_COMMIT: 86c4ed1abc32e89c27d1cf5387df22b3fe7c06db
       BUILD_TAGS: with_quic,with_grpc,with_utls,with_acme,with_gvisor,badlinkname,tfogo_checklinkname0,with_tailscale,with_cloudflared,with_openconnect,with_openvpn,with_usbip
       CGO_ENABLED: '1'
       GOOS: linux
@@ -22,7 +22,7 @@ jobs:
       - name: Checkout fixed application revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: f20ee45ef2b75fce78cc2eebce01cd156d60d33b
+          ref: 86c4ed1abc32e89c27d1cf5387df22b3fe7c06db
           persist-credentials: false
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
@@ -60,6 +60,7 @@ jobs:
       - name: Build static pilot binary
         run: |
           mkdir -p pilot-artifact
+          cp collector/subscription_collector.py pilot-artifact/subscription_collector.py
           go build -trimpath -tags "$BUILD_TAGS" -ldflags="-w -s -checklinkname=0 -linkmode external -extldflags '-static'" -o pilot-artifact/sui .
           file pilot-artifact/sui
           if readelf -l pilot-artifact/sui | grep -q 'INTERP'; then exit 1; fi
@@ -70,19 +71,19 @@ jobs:
           python3 - <<'METADATA'
           import json,os,hashlib,pathlib
           path=pathlib.Path('pilot-artifact/sui')
-          info={'sourceCommit':os.environ['SOURCE_COMMIT'],'workflowRef':os.environ['GITHUB_WORKFLOW_REF'],'runId':os.environ['GITHUB_RUN_ID'],'platform':'linux/amd64','binarySha256':hashlib.sha256(path.read_bytes()).hexdigest(),'buildTags':os.environ['BUILD_TAGS']}
+          info={'sourceCommit':os.environ['SOURCE_COMMIT'],'workflowRef':os.environ['GITHUB_WORKFLOW_REF'],'runId':os.environ['GITHUB_RUN_ID'],'platform':'linux/amd64','binarySha256':hashlib.sha256(path.read_bytes()).hexdigest(),'collectorSha256':hashlib.sha256(pathlib.Path('pilot-artifact/subscription_collector.py').read_bytes()).hexdigest(),'buildTags':os.environ['BUILD_TAGS']}
           pathlib.Path('pilot-artifact/build-metadata.json').write_text(json.dumps(info,indent=2)+'\n')
           METADATA
           cd pilot-artifact
-          sha256sum sui > SHA256SUMS
+          sha256sum sui subscription_collector.py > SHA256SUMS
           cd ..
-          tar -czf 2s-ui-pilot-linux-amd64-f20ee45.tar.gz -C pilot-artifact .
-          sha256sum 2s-ui-pilot-linux-amd64-f20ee45.tar.gz > 2s-ui-pilot-linux-amd64-f20ee45.tar.gz.sha256
+          tar -czf 2s-ui-pilot-linux-amd64-86c4ed1.tar.gz -C pilot-artifact .
+          sha256sum 2s-ui-pilot-linux-amd64-86c4ed1.tar.gz > 2s-ui-pilot-linux-amd64-86c4ed1.tar.gz.sha256
       - name: Upload reviewable build artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: 2s-ui-pilot-linux-amd64-f20ee45
+          name: 2s-ui-pilot-linux-amd64-86c4ed1
           path: |
-            2s-ui-pilot-linux-amd64-f20ee45.tar.gz
-            2s-ui-pilot-linux-amd64-f20ee45.tar.gz.sha256
+            2s-ui-pilot-linux-amd64-86c4ed1.tar.gz
+            2s-ui-pilot-linux-amd64-86c4ed1.tar.gz.sha256
           retention-days: 14

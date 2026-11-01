@@ -87,7 +87,7 @@ func (s *InboundService) GetAll() (*[]map[string]interface{}, error) {
 			!(inbound.Type == "shadowtls" && shadowtls_version < 3) &&
 			!(inbound.Type == "shadowsocks" && ss_managed) {
 			users := []string{}
-			err = db.Raw("SELECT clients.name FROM clients, json_each(clients.inbounds) as je WHERE je.value = ?", inbound.Id).Scan(&users).Error
+			err = db.Raw("SELECT clients.name FROM clients, json_each(CAST(clients.inbounds AS TEXT)) as je WHERE je.value = ?", inbound.Id).Scan(&users).Error
 			if err != nil {
 				return nil, err
 			}
@@ -361,10 +361,13 @@ func (s *InboundService) fetchUsers(db *gorm.DB, inboundType string, condition s
 	// than skipping the row. Every existing client is one of those the moment a
 	// protocol is added to hasUser, so without this the first inbound of a new
 	// type silently comes up with no users at all.
+	// RawMessage columns contain UTF-8 JSON stored as BLOBs. Some byte sequences
+	// also look like JSONB headers to SQLite, so explicitly select text parsing
+	// for credentials and membership rather than relying on BLOB fallback.
 	err := db.Raw(
-		fmt.Sprintf(`SELECT json_extract(clients.config, "$.%s")
+		fmt.Sprintf(`SELECT json_extract(CAST(clients.config AS TEXT), "$.%s")
 		FROM clients WHERE enable = true AND %s
-		AND json_extract(clients.config, "$.%s") IS NOT NULL`,
+		AND json_extract(CAST(clients.config AS TEXT), "$.%s") IS NOT NULL`,
 			inboundType, condition, inboundType), args...).Scan(&users).Error
 	if err != nil {
 		return nil, err
@@ -407,7 +410,7 @@ func (s *InboundService) addUsers(db *gorm.DB, inboundJson []byte, inboundId uin
 		return nil, err
 	}
 
-	const condition = "? IN (SELECT json_each.value FROM json_each(clients.inbounds))"
+	const condition = "? IN (SELECT json_each.value FROM json_each(CAST(clients.inbounds AS TEXT)))"
 	inbound["users"], err = s.fetchUsers(db, inboundType, condition, inbound, inboundId)
 	if err != nil {
 		return nil, err
@@ -469,7 +472,7 @@ func (s *InboundService) initUsers(db *gorm.DB, inboundJson []byte, clientIds st
 func (s *InboundService) enabledClientNames(tx *gorm.DB, inboundId uint) (map[string]struct{}, error) {
 	var names []string
 	err := tx.Raw(
-		"SELECT clients.name FROM clients, json_each(clients.inbounds) AS je WHERE je.value = ? AND clients.enable = true",
+		"SELECT clients.name FROM clients, json_each(CAST(clients.inbounds AS TEXT)) AS je WHERE je.value = ? AND clients.enable = true",
 		inboundId).Scan(&names).Error
 	if err != nil {
 		return nil, err

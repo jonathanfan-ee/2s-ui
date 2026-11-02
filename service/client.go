@@ -439,6 +439,9 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 			if err != nil {
 				return nil, err
 			}
+			if client.Group == sourceFeedGroup {
+				return nil, ErrSystemSubscriptionClientProtected
+			}
 			var clientInbounds []uint
 			err = json.Unmarshal(client.Inbounds, &clientInbounds)
 			if err != nil {
@@ -464,6 +467,9 @@ func (s *ClientService) Save(tx *gorm.DB, act string, data json.RawMessage, host
 		err = tx.Where("id = ?", id).First(&client).Error
 		if err != nil {
 			return nil, err
+		}
+		if client.Group == sourceFeedGroup {
+			return nil, ErrSystemSubscriptionClientProtected
 		}
 		err = json.Unmarshal(client.Inbounds, &inboundIds)
 		if err != nil {

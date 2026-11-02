@@ -9,7 +9,7 @@
         ><Ico name="plus" :size="20" /></div>
         <div style="min-width: 0;">
           <div style="font-size: 16px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-            {{ isNew ? $t('ui.newClient') : client.name }}
+            {{ isNew ? $t('ui.newClient') : clientDisplayName(client, t) }}
           </div>
           <div style="font-size: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ subTitle }}</div>
         </div>
@@ -29,7 +29,7 @@
         <!-- 基本信息：名称 | 描述 两列，组(含快选 chips)整行 -->
         <div class="grid2" style="margin-bottom: 15px;">
           <Field :label="$t('client.name')" :mb="0">
-            <input class="input" v-model="client.name" />
+            <input class="input" v-model="client.name" :readonly="isSystemSubscriptionClient(client)" />
           </Field>
           <Field :label="$t('client.desc')" :mb="0">
             <input class="input" v-model="client.desc" />
@@ -42,11 +42,14 @@
               :key="g"
               type="button"
               class="chip"
+              :disabled="isSystemSubscriptionClient(client)"
               :style="groupChipStyle(g)"
               @click="client.group = g"
-            >{{ g }}</button>
+            >{{ clientGroupLabel(g, t) }}</button>
           </div>
-          <input class="input" v-model="client.group" />
+          <input v-if="isSystemSubscriptionClient(client)" class="input" :value="clientGroupLabel(client.group, t)" readonly />
+          <input v-else class="input" v-model="client.group" />
+          <p v-if="isSystemSubscriptionClient(client)" style="color: var(--amber); font-size: 12px;">{{ $t('ui.systemSubscriptionIdentityHint') }}</p>
         </Field>
 
         <hr class="form-divider" />
@@ -267,6 +270,7 @@ import BarMini from '@/components/charts/BarMini.vue'
 import ResetCycleFields from './ResetCycleFields.vue'
 import IconBtn from '@/components/ui/IconBtn.vue'
 import { copyToClipboard } from '@/plugins/clipboard'
+import { clientDisplayName, clientGroupLabel, isSystemSubscriptionClient } from '@/utils/clientIdentity'
 
 const props = defineProps<{
   visible: boolean
@@ -346,7 +350,7 @@ const subTitle = computed(() => {
       .map((id) => Data().inbounds?.find((i: any) => i.id == id)?.type)
       .filter((x: any) => !!x),
   ))
-  const parts = [types.join(', '), client.value.group].filter((s) => !!s && String(s).length > 0)
+  const parts = [types.join(', '), client.value.group ? clientGroupLabel(client.value.group, t) : ''].filter((s) => !!s && String(s).length > 0)
   return parts.length > 0 ? parts.join(' · ') : t('objects.client')
 })
 

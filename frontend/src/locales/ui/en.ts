@@ -1,5 +1,10 @@
 // Generated from design_handoff_2s_ui_console dictionaries (gen-ui-locales.mjs)
 export default {
+  systemSubscriptionGroup: "System subscription bridges (do not delete)",
+  systemSubscriptionAccount: "System subscription account (do not delete)",
+  systemSubscriptionPurpose: "Supplies snapshots to legacy aggregators; deletion interrupts existing subscriptions",
+  systemSubscriptionProtected: "System subscription accounts are protected from deletion in the client list",
+  systemSubscriptionIdentityHint: "This identity and group authorize subscription readers. Do not rename or remove it as a trial account. Disabling it also interrupts its legacy subscription.",
   ruleNew: "New routing rule",
   ruleSub: "Match traffic and act on it",
   ruleEdit: "Routing rule",

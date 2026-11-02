@@ -1,5 +1,10 @@
 // Generated from design_handoff_2s_ui_console dictionaries (gen-ui-locales.mjs)
 export default {
+  systemSubscriptionGroup: "系统订阅桥接（勿删）",
+  systemSubscriptionAccount: "系统订阅账号（勿删）",
+  systemSubscriptionPurpose: "用于旧聚合订阅读取快照，删除会影响历史订阅",
+  systemSubscriptionProtected: "系统订阅账号受保护，不能从用户列表删除",
+  systemSubscriptionIdentityHint: "系统身份及分组用于订阅授权，请勿改名或当作试用账号删除。停用也会中断对应历史订阅。",
   ruleNew: "新建路由规则",
   ruleSub: "匹配流量并执行动作",
   ruleEdit: "路由规则",

@@ -45,7 +45,7 @@
       <template v-if="sel.size > 0">
         <span class="sel-info">{{ $t('ui.selected', { n: sel.size }) }}</span>
         <Btn sm @click="openEditBulk"><Ico name="edit" :size="14" /> {{ $t('ui.editBulk') }}</Btn>
-        <Btn sm style="color: var(--rose);" :title="$t('actions.delbulk')" @click="askDelete([...sel])">
+        <Btn sm style="color: var(--rose);" :disabled="hasSystemClients([...sel])" :title="hasSystemClients([...sel]) ? $t('ui.systemSubscriptionProtected') : $t('actions.delbulk')" @click="askDelete([...sel])">
           <Ico name="trash" :size="14" />
         </Btn>
       </template>
@@ -84,15 +84,15 @@
                   </div>
                   <div style="min-width: 0;">
                     <div style="font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 7px; white-space: nowrap;">
-                      {{ c.name }}
+                      {{ displayName(c) }}
                       <span v-if="!c.enable" class="chip off-chip">{{ $t('ui.off') }}</span>
                     </div>
-                    <div style="font-size: 12px; color: var(--text-3);">{{ c.desc }}</div>
+                    <div style="font-size: 12px; color: var(--text-3);">{{ isSystemSubscriptionClient(c) ? $t('ui.systemSubscriptionPurpose') : c.desc }}</div>
                   </div>
                 </div>
               </td>
               <td>
-                <Chip :color="groupColor(c.group)" style="text-transform: capitalize;">{{ c.group || $t('none') }}</Chip>
+                <Chip :color="groupColor(c.group)" style="text-transform: capitalize;">{{ groupLabel(c.group) }}</Chip>
               </td>
               <td>
                 <span class="mono" style="font-size: 12.5px; color: var(--text-2);" :title="inbTitle(c)">{{ protoSummary(c) }}</span>
@@ -162,7 +162,7 @@
                   <IconBtn name="qr" :title="$t('client.links')" @click="showQrCode(c.id)" />
                   <IconBtn v-if="dataStore.enableTraffic" name="chart" :title="$t('stats.graphTitle')" @click="showStats(c.name)" />
                   <IconBtn name="edit" :title="$t('actions.edit')" @click="openDrawer(c.id)" />
-                  <IconBtn name="trash" danger :title="$t('actions.del')" @click="askDelete([c.id])" />
+                  <IconBtn name="trash" danger :disabled="isSystemSubscriptionClient(c)" :title="isSystemSubscriptionClient(c) ? $t('ui.systemSubscriptionProtected') : $t('actions.del')" @click="askDelete([c.id])" />
                 </div>
               </td>
             </tr>
@@ -201,12 +201,12 @@
           </div>
           <div style="flex: 1; min-width: 0;">
             <div style="font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 7px;">
-              <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ c.name }}</span>
+              <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ displayName(c) }}</span>
               <span v-if="!c.enable" class="chip off-chip" style="flex: none;">{{ $t('ui.off') }}</span>
             </div>
-            <div style="font-size: 12px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ c.desc }}</div>
+            <div style="font-size: 12px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ isSystemSubscriptionClient(c) ? $t('ui.systemSubscriptionPurpose') : c.desc }}</div>
           </div>
-          <Chip :color="groupColor(c.group)" style="flex: none; text-transform: capitalize;">{{ c.group || $t('none') }}</Chip>
+          <Chip :color="groupColor(c.group)" style="flex: none; text-transform: capitalize;">{{ groupLabel(c.group) }}</Chip>
         </div>
         <div class="kv-row">
           <span class="k">{{ $t('ui.colUsage') }}</span>
@@ -274,7 +274,7 @@
           <IconBtn name="qr" :title="$t('client.links')" @click="showQrCode(c.id)" />
           <IconBtn v-if="dataStore.enableTraffic" name="chart" :title="$t('stats.graphTitle')" @click="showStats(c.name)" />
           <IconBtn name="edit" :title="$t('actions.edit')" @click="openDrawer(c.id)" />
-          <IconBtn name="trash" danger :title="$t('actions.del')" @click="askDelete([c.id])" />
+          <IconBtn name="trash" danger :disabled="isSystemSubscriptionClient(c)" :title="isSystemSubscriptionClient(c) ? $t('ui.systemSubscriptionProtected') : $t('actions.del')" @click="askDelete([c.id])" />
         </div>
       </div>
       <div class="card t-foot">
@@ -314,6 +314,7 @@ import Toggle from '@/components/ui/Toggle.vue'
 import Segmented from '@/components/ui/Segmented.vue'
 import Select from '@/components/ui/Select.vue'
 import DeleteConfirm from '@/components/ui/DeleteConfirm.vue'
+import { clientDisplayName, clientGroupLabel, isSystemSubscriptionClient } from '@/utils/clientIdentity'
 import BarMini from '@/components/charts/BarMini.vue'
 import ClientDrawer from '@/layouts/drawers/client/ClientDrawer.vue'
 import ClientAddBulk from '@/layouts/drawers/client/ClientAddBulk.vue'
@@ -328,6 +329,10 @@ const dataStore = Data()
 
 // ---------------- store data ----------------
 const clients = computed((): any[] => dataStore.clients)
+const groupLabel = (group: string): string => clientGroupLabel(group, t)
+const displayName = (client: any): string => clientDisplayName(client, t)
+const hasSystemClients = (ids: number[]): boolean =>
+  clients.value.some((client: any) => ids.includes(client.id) && isSystemSubscriptionClient(client))
 const inbounds = computed((): any[] => dataStore.inbounds ?? [])
 const inboundTags = computed((): { title: string; value: number }[] => {
   if (!inbounds.value) return []
@@ -363,7 +368,7 @@ const stateFilter = ref<string | number>('all')
 
 const groupOptions = computed((): [string | number, string][] => [
   ['all', t('ui.allGroups')],
-  ...groups.value.map((g): [string | number, string] => [g, g.length > 0 ? g : t('none')]),
+  ...groups.value.map((g): [string | number, string] => [g, groupLabel(g)]),
 ])
 const stateOptions = computed((): [string | number, string][] => [
   ['all', t('ui.any')],
@@ -559,10 +564,11 @@ const showSessions = (name: string) => {
 const del = ref({ visible: false, ids: [] as number[] })
 const deleting = ref(false)
 const askDelete = (ids: number[]) => {
+  if (hasSystemClients(ids)) return
   del.value = { visible: true, ids }
 }
 const confirmDelete = async () => {
-  if (del.value.ids.length === 0) return
+  if (del.value.ids.length === 0 || hasSystemClients(del.value.ids)) return
   deleting.value = true
   const success = del.value.ids.length === 1
     ? await Data().save('clients', 'del', del.value.ids[0])

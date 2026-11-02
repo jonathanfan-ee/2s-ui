@@ -11,7 +11,13 @@ import (
 	ormlog "gorm.io/gorm/logger"
 )
 
+const sourceFeedGroup = "@source-feed"
+
 var ErrExternalSubSourceDenied = errors.New("source-feed-unavailable")
+
+// These identities keep legacy aggregators reading the centralized snapshots.
+// A deliberate removal must first move the identity out of this reserved role.
+var ErrSystemSubscriptionClientProtected = errors.New("system subscription reader cannot be deleted; remove its system role explicitly first")
 
 // ExternalSourceSnapshot is the original, validated provider payload. It is
 // deliberately independent of node prefixes, client templates and self-hosted
@@ -35,7 +41,7 @@ func (*ExternalSubSourceService) SnapshotForReader(id, reader string, native boo
 	err := db.Model(&model.ExternalSubSource{}).Select("external_sub_sources.*").
 		Joins("JOIN external_sub_grants ON external_sub_grants.source_id = external_sub_sources.id").
 		Joins("JOIN clients ON clients.id = external_sub_grants.client_id").
-		Where("external_sub_sources.id = ? AND external_sub_sources.enabled = ? AND clients.name = ? AND clients.enable = ? AND clients.`group` = ? AND (clients.expiry = 0 OR clients.expiry > ?) AND (clients.volume <= 0 OR clients.up + clients.down <= clients.volume)", id, true, reader, true, "@source-feed", now).
+		Where("external_sub_sources.id = ? AND external_sub_sources.enabled = ? AND clients.name = ? AND clients.enable = ? AND clients.`group` = ? AND (clients.expiry = 0 OR clients.expiry > ?) AND (clients.volume <= 0 OR clients.up + clients.down <= clients.volume)", id, true, reader, true, sourceFeedGroup, now).
 		First(&source).Error
 	if err != nil {
 		return nil, ErrExternalSubSourceDenied

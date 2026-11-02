@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      SOURCE_COMMIT: 52b74167092d4c0d67fe46d043b04f4c0f3a388a
+      SOURCE_COMMIT: 0ca77ddfe428a42a64b29366d50b08383eecfc09
       BUILD_TAGS: with_quic,with_grpc,with_utls,with_acme,with_gvisor,badlinkname,tfogo_checklinkname0,with_tailscale,with_cloudflared,with_openconnect,with_openvpn,with_usbip
       CGO_ENABLED: '1'
       GOOS: linux
@@ -22,7 +22,7 @@ jobs:
       - name: Checkout fixed application revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: 52b74167092d4c0d67fe46d043b04f4c0f3a388a
+          ref: 0ca77ddfe428a42a64b29366d50b08383eecfc09
           persist-credentials: false
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
@@ -77,13 +77,13 @@ jobs:
           cd pilot-artifact
           sha256sum sui subscription_collector.py > SHA256SUMS
           cd ..
-          tar -czf 2s-ui-pilot-linux-amd64-52b7416.tar.gz -C pilot-artifact .
-          sha256sum 2s-ui-pilot-linux-amd64-52b7416.tar.gz > 2s-ui-pilot-linux-amd64-52b7416.tar.gz.sha256
+          tar -czf 2s-ui-pilot-linux-amd64-0ca77dd.tar.gz -C pilot-artifact .
+          sha256sum 2s-ui-pilot-linux-amd64-0ca77dd.tar.gz > 2s-ui-pilot-linux-amd64-0ca77dd.tar.gz.sha256
       - name: Upload reviewable build artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: 2s-ui-pilot-linux-amd64-52b7416
+          name: 2s-ui-pilot-linux-amd64-0ca77dd
           path: |
-            2s-ui-pilot-linux-amd64-52b7416.tar.gz
-            2s-ui-pilot-linux-amd64-52b7416.tar.gz.sha256
+            2s-ui-pilot-linux-amd64-0ca77dd.tar.gz
+            2s-ui-pilot-linux-amd64-0ca77dd.tar.gz.sha256
           retention-days: 14
